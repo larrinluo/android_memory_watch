@@ -8,6 +8,7 @@ public class ProcessResourceInfo {
     public long timestamp;
     public MemoryInfo memoryInfo;
     public ProcessInfo processInfo;
+    public long vss;                    //虚存
 
     public static ProcessResourceInfo dump(Context context) {
         ProcessResourceInfo resourceInfo = new ProcessResourceInfo();
@@ -20,7 +21,7 @@ public class ProcessResourceInfo {
     @NonNull
     @Override
     public String toString() {
-        return String.format("%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
+        return String.format("%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
             memoryInfo.mPss,
             memoryInfo.mJavaHeap,
             memoryInfo.mNativeHeap,
@@ -31,6 +32,7 @@ public class ProcessResourceInfo {
             memoryInfo.mEGLMTrack,
             memoryInfo.mGLMTrack,
             memoryInfo.mStack,
+            processInfo.vss,
             processInfo.threads,
             processInfo.openFiles);
     }
