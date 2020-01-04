@@ -2,6 +2,7 @@ package com.ttphoto.android.resources.watch
 
 import android.os.Bundle
 import android.os.Handler
+import android.os.Process
 import android.support.v7.app.AppCompatActivity
 import android.util.Log
 import com.ttphoto.resource.watch.sdk.ProcessResourceInfo
@@ -18,7 +19,7 @@ class MainActivity : AppCompatActivity() {
         val handler = Handler()
         val runnable = object: Runnable {
             override fun run() {
-                val resourceInfo = ProcessResourceInfo.dump(this@MainActivity)
+                val resourceInfo = ProcessResourceInfo.dump(this@MainActivity, Process.myPid())
                 Log.d("ProcessResource", resourceInfo.toString())
                 handler.postDelayed(this, 5000)
             }

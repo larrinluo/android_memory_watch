@@ -1,7 +1,5 @@
 package com.ttphoto.resource.watch.sdk;
 
-import android.os.Process;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -13,18 +11,18 @@ public class ProcessInfo {
     public int openFiles;       // 文件句柄数量
     public int vss;             // 虚存
 
-    public static ProcessInfo dump() {
+    public static ProcessInfo dump(int pid) {
         ProcessInfo processInfo = new ProcessInfo();
-        dumpProcessInfoFromStatus(processInfo);
+        dumpProcessInfoFromStatus(processInfo, pid);
         return processInfo;
     }
 
-    private static void dumpProcessInfoFromStatus(ProcessInfo processInfo) {
+    private static void dumpProcessInfoFromStatus(ProcessInfo processInfo, int pid) {
 
         FileReader fileReader = null;
         BufferedReader reader = null;
         try {
-            String path = String.format("/proc/%d/status", Process.myPid());
+            String path = String.format("/proc/%d/status", pid);
             fileReader = new FileReader(path);
             reader = new BufferedReader(fileReader);
             String line;
@@ -75,10 +73,10 @@ public class ProcessInfo {
     public static void dumpThreadDetail() {
     }
 
-    private static String readProcFile(String filePath) {
+    private static String readProcFile(String filePath, int pid) {
         FileInputStream inputStream = null;
         try {
-            String path = String.format("/proc/%d/%s", Process.myPid(), filePath);
+            String path = String.format("/proc/%d/%s", pid, filePath);
             File file = new File(path);
 
             if (file.exists()) {
@@ -118,8 +116,8 @@ public class ProcessInfo {
         return null;
     }
 
-    private static int getFileCountUnderProcFolder(String folder) {
-        String fdPath = String.format("/proc/%d/%s", Process.myPid(), folder);
+    private static int getFileCountUnderProcFolder(String folder, int pid) {
+        String fdPath = String.format("/proc/%d/%s", pid, folder);
         File dir = new File(fdPath);
         if (dir.isDirectory()) {
             String[] names = dir.list();

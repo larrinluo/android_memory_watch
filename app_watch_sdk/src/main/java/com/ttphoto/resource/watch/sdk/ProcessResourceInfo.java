@@ -5,16 +5,18 @@ import android.support.annotation.NonNull;
 
 public class ProcessResourceInfo {
 
+    public int pid;
     public long timestamp;
     public MemoryInfo memoryInfo;
     public ProcessInfo processInfo;
     public long vss;                    //虚存
 
-    public static ProcessResourceInfo dump(Context context) {
+    public static ProcessResourceInfo dump(Context context, int pid) {
         ProcessResourceInfo resourceInfo = new ProcessResourceInfo();
+        resourceInfo.pid = pid;
         resourceInfo.timestamp = System.currentTimeMillis();
-        resourceInfo.memoryInfo = MemoryInfo.dump(context);
-        resourceInfo.processInfo = ProcessInfo.dump();
+        resourceInfo.memoryInfo = MemoryInfo.dump(context, pid);
+        resourceInfo.processInfo = ProcessInfo.dump(pid);
         return resourceInfo;
     }
 

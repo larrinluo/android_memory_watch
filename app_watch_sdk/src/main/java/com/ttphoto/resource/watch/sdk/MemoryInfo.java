@@ -5,7 +5,6 @@ import android.app.ActivityManager;
 import android.content.Context;
 import android.os.Build;
 import android.os.Debug;
-import android.os.Process;
 import android.util.Log;
 
 import java.lang.reflect.Field;
@@ -65,11 +64,11 @@ public class MemoryInfo {
      *
      *     target api >= 28后， 私有方法不允许反射了。保持target apu < 28
      */
-    public static MemoryInfo dump(Context context) {
+    public static MemoryInfo dump(Context context, int pid) {
         if (Build.VERSION.SDK_INT < 23)
-            return DebugMemoryInfoV5.getMemoryInfo(context);
+            return DebugMemoryInfoV5.getMemoryInfo(context, pid);
         else
-            return DebugMemoryInfoV6.getMemoryInfo(context);
+            return DebugMemoryInfoV6.getMemoryInfo(context, pid);
     }
 
     /**
@@ -92,10 +91,10 @@ public class MemoryInfo {
         private static int OTHER_UNKNOWN_DEV = -1;
 
 
-        public static MemoryInfo getMemoryInfo(Context context) {
+        public static MemoryInfo getMemoryInfo(Context context, int pid) {
             if (init()) {
                 ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
-                int pids[] = {Process.myPid()};
+                int pids[] = {pid};
                 Debug.MemoryInfo[] memoryInfos = am.getProcessMemoryInfo(pids);
                 return parse(memoryInfos[0]);
             }
@@ -185,10 +184,10 @@ public class MemoryInfo {
             return sInited == 0;
         }
 
-        public static MemoryInfo getMemoryInfo(Context context) {
+        public static MemoryInfo getMemoryInfo(Context context, int pid) {
             if (init()) {
                 ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
-                int pids[] = {Process.myPid()};
+                int pids[] = {pid};
                 Debug.MemoryInfo[] memoryInfos = am.getProcessMemoryInfo(pids);
                 return parse(memoryInfos[0]);
             }
