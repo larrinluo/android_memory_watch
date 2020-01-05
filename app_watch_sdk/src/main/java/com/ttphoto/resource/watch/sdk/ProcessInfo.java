@@ -7,6 +7,7 @@ import java.io.FileReader;
 
 public class ProcessInfo {
 
+    public boolean running;     // 是否还在运行
     public int threads;         // 线程数量
     public int openFiles;       // 文件句柄数量
     public int vss;             // 虚存
@@ -23,6 +24,12 @@ public class ProcessInfo {
         BufferedReader reader = null;
         try {
             String path = String.format("/proc/%d/status", pid);
+            File file = new File(path);
+            processInfo.running = file.exists();
+            if (!processInfo.running) {
+                return;
+            }
+
             fileReader = new FileReader(path);
             reader = new BufferedReader(fileReader);
             String line;

@@ -3,27 +3,36 @@ package com.ttphoto.resource.watch.sdk;
 import android.content.Context;
 import android.support.annotation.NonNull;
 
-public class ProcessResourceInfo {
+public class AppResourceInfo {
 
     public int pid;
     public long timestamp;
     public MemoryInfo memoryInfo;
     public ProcessInfo processInfo;
-    public long vss;                    //虚存
 
-    public static ProcessResourceInfo dump(Context context, int pid) {
-        ProcessResourceInfo resourceInfo = new ProcessResourceInfo();
+    public static AppResourceInfo dump(Context context, int pid) {
+
+        AppResourceInfo resourceInfo = new AppResourceInfo();
         resourceInfo.pid = pid;
         resourceInfo.timestamp = System.currentTimeMillis();
-        resourceInfo.memoryInfo = MemoryInfo.dump(context, pid);
         resourceInfo.processInfo = ProcessInfo.dump(pid);
+        if (resourceInfo.processInfo.running) {
+            resourceInfo.memoryInfo = MemoryInfo.dump(context, pid);
+        }
+
         return resourceInfo;
     }
 
     @NonNull
     @Override
     public String toString() {
-        return String.format("%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
+
+        if (!processInfo.running) {
+            return "Process " + pid + " exists";
+        }
+
+        return String.format("%d\t:%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
+            pid,
             memoryInfo.mPss,
             memoryInfo.mJavaHeap,
             memoryInfo.mNativeHeap,
