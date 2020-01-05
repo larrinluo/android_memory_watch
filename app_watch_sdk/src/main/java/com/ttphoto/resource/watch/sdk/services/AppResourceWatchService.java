@@ -11,9 +11,11 @@ import android.os.RemoteException;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
+import com.ttphoto.resource.watch.sdk.CPUInfo;
 import com.ttphoto.resource.watch.sdk.IAppResourceWatchClient;
 import com.ttphoto.resource.watch.sdk.AppResourceInfo;
 import com.ttphoto.resource.watch.sdk.IAppResourceWatchService;
+import com.ttphoto.resource.watch.sdk.utils.Utils;
 
 /**
  * 资源监视服务，可以运行在独立进程中，具有以下优势：
@@ -81,6 +83,7 @@ class ResourceWatcher {
     private Context mContext;
     private long mStartTime;
     private boolean mRunning;
+    private CPUInfo mCPUInfo;
 
     private Thread mWatchThread = new Thread() {
         @Override
@@ -88,22 +91,28 @@ class ResourceWatcher {
 
             mStartTime = System.currentTimeMillis();
             mRunning = true;
+            int count = 0;
 
             while (mRunning) {
-
-                AppResourceInfo resourceInfo = AppResourceInfo.dump(mContext, mPid);
-                if (!resourceInfo.processInfo.running) {
-                    Log.d("AppResource", String.format("process %d exists", mPid));
-                    break;
+                if (count >= 5) {
+                    mCPUInfo.update(true);
+                    AppResourceInfo resourceInfo = AppResourceInfo.dump(mContext, mPid);
+                    resourceInfo.processInfo.totalCpu = mCPUInfo.getmTotalCpu();
+                    resourceInfo.processInfo.myCpu = mCPUInfo.getmMyCpu();
+                    if (!resourceInfo.processInfo.running) {
+                        Log.d("AppResource", String.format("process %d exists", mPid));
+                        break;
+                    }
+                    Log.d("AppResource", resourceInfo.toString());
+                    count = 0;
+                } else {
+                    if (count == 4)
+                        mCPUInfo.update(false);
+                    count++;
                 }
-                Log.d("AppResource", resourceInfo.toString());
 
                 synchronized (this) {
-                    try {
-                        this.wait(5000);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
+                    Utils.waitScilently(this, 1000);
                 }
             }
         }
@@ -114,6 +123,7 @@ class ResourceWatcher {
         mMaxJavaHeap = maxJavaHeap;
         mClient = client;
         mContext = context;
+        mCPUInfo = new CPUInfo(pid);
     }
 
     public void start() {

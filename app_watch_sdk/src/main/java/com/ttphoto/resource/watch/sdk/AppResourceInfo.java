@@ -31,7 +31,7 @@ public class AppResourceInfo {
             return "Process " + pid + " exists";
         }
 
-        return String.format("%d\t:%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
+        return String.format("%d\t:%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%.1f\t%.1f",
             pid,
             memoryInfo.mPss,
             memoryInfo.mJavaHeap,
@@ -45,6 +45,8 @@ public class AppResourceInfo {
             memoryInfo.mStack,
             processInfo.vss,
             processInfo.threads,
-            processInfo.openFiles);
+            processInfo.openFiles,
+            processInfo.totalCpu,
+            processInfo.myCpu);
     }
 }
