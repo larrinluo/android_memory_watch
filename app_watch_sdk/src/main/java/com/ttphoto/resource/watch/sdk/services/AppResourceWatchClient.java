@@ -4,6 +4,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.os.Debug;
 import android.os.IBinder;
 import android.os.RemoteException;
 
@@ -28,7 +29,11 @@ public class AppResourceWatchClient {
 
         @Override
         public void dumpJavaHeap(String fileName) throws RemoteException {
-            //TODO: dump java heap to file
+            try {
+                Debug.dumpHprofData(fileName);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     };
 

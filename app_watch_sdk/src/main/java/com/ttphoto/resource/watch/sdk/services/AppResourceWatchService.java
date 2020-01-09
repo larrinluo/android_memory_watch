@@ -15,6 +15,7 @@ import com.ttphoto.resource.watch.sdk.CPUInfo;
 import com.ttphoto.resource.watch.sdk.IAppResourceWatchClient;
 import com.ttphoto.resource.watch.sdk.AppResourceInfo;
 import com.ttphoto.resource.watch.sdk.IAppResourceWatchService;
+import com.ttphoto.resource.watch.sdk.IAppWatchCallback;
 import com.ttphoto.resource.watch.sdk.utils.Utils;
 
 /**
@@ -30,6 +31,14 @@ import com.ttphoto.resource.watch.sdk.utils.Utils;
 public class AppResourceWatchService extends Service {
 
     ResourceWatcher watcher = null;
+
+    private static IAppWatchCallback sCallback = new IAppWatchCallback() {
+
+        @Override
+        public void onUpdate(AppResourceInfo info) {
+            Log.d("AppResource", info.toString());
+        }
+    };
 
     IBinder mService = new IAppResourceWatchService.Stub() {
 
@@ -50,7 +59,7 @@ public class AppResourceWatchService extends Service {
                 watcher.stop();
             }
 
-            watcher = new ResourceWatcher(pid, maxJavaHeap, client, AppResourceWatchService.this);
+            watcher = new ResourceWatcher(pid, maxJavaHeap, client, AppResourceWatchService.this, sCallback);
             watcher.start();
         }
     };
@@ -73,6 +82,10 @@ public class AppResourceWatchService extends Service {
 
         return 0;
     }
+
+    public static void setWatchCallback(IAppWatchCallback callback) {
+        sCallback = callback;
+    }
 }
 
 class ResourceWatcher {
@@ -84,6 +97,7 @@ class ResourceWatcher {
     private long mStartTime;
     private boolean mRunning;
     private CPUInfo mCPUInfo;
+    private IAppWatchCallback mCallback;
 
     private Thread mWatchThread = new Thread() {
         @Override
@@ -103,7 +117,11 @@ class ResourceWatcher {
                         Log.d("AppResource", String.format("process %d exists", mPid));
                         break;
                     }
-                    Log.d("AppResource", resourceInfo.toString());
+
+                    if (mCallback != null) {
+                        mCallback.onUpdate(resourceInfo);
+                    }
+
                     count = 0;
                 } else {
                     if (count == 4)
@@ -118,12 +136,13 @@ class ResourceWatcher {
         }
     };
 
-    ResourceWatcher(int pid, long maxJavaHeap, IAppResourceWatchClient client, Context context) {
+    ResourceWatcher(int pid, long maxJavaHeap, IAppResourceWatchClient client, Context context, IAppWatchCallback callback) {
         mPid = pid;
         mMaxJavaHeap = maxJavaHeap;
         mClient = client;
         mContext = context;
         mCPUInfo = new CPUInfo(pid);
+        mCallback = callback;
     }
 
     public void start() {
