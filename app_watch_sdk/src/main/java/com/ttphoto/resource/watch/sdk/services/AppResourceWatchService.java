@@ -11,7 +11,7 @@ import android.os.RemoteException;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
-import com.ttphoto.resource.watch.sdk.CPUInfo;
+import com.ttphoto.resource.watch.sdk.resources.CPUInfo;
 import com.ttphoto.resource.watch.sdk.IAppResourceWatchClient;
 import com.ttphoto.resource.watch.sdk.AppResourceInfo;
 import com.ttphoto.resource.watch.sdk.IAppResourceWatchService;
@@ -35,8 +35,18 @@ public class AppResourceWatchService extends Service {
     private static IAppWatchCallback sCallback = new IAppWatchCallback() {
 
         @Override
+        public void onAppStart(int pid) {
+            Log.d("AppResource", String.format("process %d start", pid));
+        }
+
+        @Override
         public void onUpdate(AppResourceInfo info) {
             Log.d("AppResource", info.toString());
+        }
+
+        @Override
+        public void onAppExist(int pid) {
+            Log.d("AppResource", String.format("process %d exists", pid));
         }
     };
 
@@ -107,6 +117,10 @@ class ResourceWatcher {
             mRunning = true;
             int count = 0;
 
+            if (mCallback != null) {
+                mCallback.onAppStart(mPid);
+            }
+
             while (mRunning) {
                 if (count >= 5) {
                     mCPUInfo.update(true);
@@ -114,7 +128,9 @@ class ResourceWatcher {
                     resourceInfo.processInfo.totalCpu = mCPUInfo.getmTotalCpu();
                     resourceInfo.processInfo.myCpu = mCPUInfo.getmMyCpu();
                     if (!resourceInfo.processInfo.running) {
-                        Log.d("AppResource", String.format("process %d exists", mPid));
+                        if (mCallback != null) {
+                            mCallback.onAppExist(mPid);
+                        }
                         break;
                     }
 

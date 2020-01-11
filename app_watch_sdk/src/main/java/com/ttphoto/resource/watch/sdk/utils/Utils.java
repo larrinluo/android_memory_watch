@@ -1,8 +1,11 @@
 package com.ttphoto.resource.watch.sdk.utils;
 
+import android.os.Process;
+
+import java.io.BufferedReader;
 import java.io.Closeable;
-import java.io.File;
 import java.io.FileInputStream;
+import java.io.InputStreamReader;
 
 public class Utils {
 
@@ -25,39 +28,52 @@ public class Utils {
     }
 
     public static String readProcFile(String filePath, int pid) {
-        FileInputStream inputStream = null;
+        BufferedReader reader = null;
         try {
             String path = String.format("/proc/%d/%s", pid, filePath);
-            File file = new File(path);
+            reader = new BufferedReader(new InputStreamReader(new FileInputStream(path), "iso-8859-1"));
+            StringBuilder processName = new StringBuilder();
 
-            if (file.exists()) {
-                inputStream = new FileInputStream(file);
-                int bytes = 0;
-                byte[] buffer = new byte[1024]; //无法预先获取文件长度，动态调整buffer大小
-                while (true) {
-                    int b = inputStream.read(buffer, bytes, buffer.length - bytes);
-                    if (b <= 0)
-                        break;
-
-                    bytes += b;
-                    if (bytes == buffer.length) { //need expend buffer
-                        byte[] newBuffer = new byte[buffer.length + 1024];
-                        System.arraycopy(buffer, 0, newBuffer, 0, buffer.length);
-                        buffer = newBuffer;
-                    }
-                }
-
-                if (bytes > 0) {
-                    return new String(buffer);
-                }
+            int c;
+            while ((c = reader.read()) > 0) {
+                processName.append((char) c);
             }
 
+            return processName.toString();
+
         } catch (Exception e) {
-            e.printStackTrace();
         } finally {
-            Utils.closeScilently(inputStream);
+            closeScilently(reader);
         }
 
         return null;
+    }
+
+    public static String getProcessName() {
+        String cmdline = readProcFile("cmdline", Process.myPid());
+        return cmdline;
+    }
+
+    public static String getAndroidProcessName() {
+        String processName = getProcessName();
+        if (processName == null)
+            return null;
+
+        int idx = processName.indexOf(":");
+        if (idx == -1 || idx == processName.length() - 1)
+            return null;
+
+        return processName.substring(idx + 1);
+    }
+
+    public static boolean isMainProcess() {
+        return getAndroidProcessName() == null;
+    }
+
+    public static boolean isWatchProcess(String processName) {
+        if (processName == null)
+            return false;
+
+        return processName.equals(getAndroidProcessName());
     }
 }

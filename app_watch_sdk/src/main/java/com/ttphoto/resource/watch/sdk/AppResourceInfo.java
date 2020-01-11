@@ -3,6 +3,9 @@ package com.ttphoto.resource.watch.sdk;
 import android.content.Context;
 import android.support.annotation.NonNull;
 
+import com.ttphoto.resource.watch.sdk.resources.MemoryInfo;
+import com.ttphoto.resource.watch.sdk.resources.ProcessInfo;
+
 public class AppResourceInfo {
 
     public int pid;
@@ -23,6 +26,38 @@ public class AppResourceInfo {
         return resourceInfo;
     }
 
+    public static String[] getCSVHeaders() {
+        return new String[] {
+            "Pss",
+            "Java",
+            "Native",
+            "Graphics",
+            "Other",
+            "GfxDev",
+            "EGLMTrack",
+            "GLMTrack",
+            "Stack",
+            "Vss",
+            "Threads",
+            "Fds",
+            "CPU",
+            "MyCpu"
+        };
+    }
+
+    public static String getCSVHeaderString() {
+        StringBuilder builder = new StringBuilder();
+        String[] headers = getCSVHeaders();
+        for (int i = 0; i < headers.length; i++) {
+            if (i > 0)
+                builder.append("\t");
+
+            builder.append(headers[i]);
+        }
+
+        return builder.toString();
+    }
+
     @NonNull
     @Override
     public String toString() {
@@ -31,8 +66,7 @@ public class AppResourceInfo {
             return "Process " + pid + " exists";
         }
 
-        return String.format("%d\t:%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%.1f\t%.1f",
-            pid,
+        return String.format("%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%.1f\t%.1f",
             memoryInfo.mPss,
             memoryInfo.mJavaHeap,
             memoryInfo.mNativeHeap,

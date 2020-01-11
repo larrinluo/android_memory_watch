@@ -1,9 +1,13 @@
 package com.ttphoto.android.resources.watch
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.support.v4.app.ActivityCompat
+import android.support.v4.content.ContextCompat
 import android.support.v7.app.AppCompatActivity
 import android.util.Log
-import com.ttphoto.resource.watch.sdk.services.AppResourceWatchClient
+import com.ttphoto.resource.watch.report.ReportClient
 import kotlin.math.sqrt
 
 class MainActivity : AppCompatActivity() {
@@ -12,10 +16,26 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        //How to use:
-        AppResourceWatchClient.start(this)
+        if (!ReportClient.running) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+                ReportClient.start("watch", "/sdcard/app_watch",this)
+                cpuTestThread.start();
+            } else {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), 1000)
+            }
+        }
+    }
 
-        cpuTestThread.start();
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 1000 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            ReportClient.start("watch", "/sdcard/app_watch",this)
+            cpuTestThread.start();
+        }
     }
 
     val cpuTestThread = object: Thread() {

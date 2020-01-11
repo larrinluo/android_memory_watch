@@ -1,11 +1,10 @@
-package com.ttphoto.resource.watch.sdk;
+package com.ttphoto.resource.watch.sdk.resources;
 
 import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.os.Build;
 import android.os.Debug;
-import android.util.Log;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -14,22 +13,50 @@ import java.lang.reflect.Method;
  * Memory Info of this process of a given time
  */
 public class MemoryInfo {
-    int mPss;          // total PSS, KB
-    int mJavaHeap;     // Java heap usage, KB
-    int mNativeHeap;   // native heap usage, KB
-    int mGraphics;     // graphic memory usage, KB
-    int mPrivateOther; // other total, KB
-    int mStack;        // stack memory uages
-    int mGfxDev;       // gfx dev
-    int mEGLMTrack;    // EGL mtrack
-    int mGLMTrack;     // GL mtrack
-    int mOtherDev;     // Other dev
+    public final int mPss;          // total PSS, KB
+    public final int mJavaHeap;     // Java heap usage, KB
+    public final int mNativeHeap;   // native heap usage, KB
+    public final int mGraphics;     // graphic memory usage, KB
+    public final int mPrivateOther; // other total, KB
+    public final int mStack;        // stack memory uages
+    public final int mGfxDev;       // gfx dev
+    public final int mEGLMTrack;    // EGL mtrack
+    public final int mGLMTrack;     // GL mtrack
+    public final int mOtherDev;     // Other dev
 
-    public void print() {
-        String str = String.format("%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d", mPss,
-                mJavaHeap, mNativeHeap, mGraphics, mPrivateOther, mGfxDev, mEGLMTrack,
-                mGLMTrack, mStack, mOtherDev);
-        Log.d("DebugMemoryInfo", str);
+    public MemoryInfo() {
+        mPss = 0;
+        mJavaHeap = 0;
+        mNativeHeap = 0;
+        mGraphics = 0;
+        mPrivateOther = 0;
+        mStack = 0;
+        mGfxDev = 0;
+        mEGLMTrack = 0;
+        mGLMTrack = 0;
+        mOtherDev = 0;
+    }
+
+    public MemoryInfo(int pss,
+                      int javaHeap,
+                      int nativeHeap,
+                      int graphics,
+                      int privateOther,
+                      int stack,
+                      int gfxDev,
+                      int eglMtrack,
+                      int glMtrack,
+                      int otherDev) {
+        mPss = pss;
+        mJavaHeap = javaHeap;
+        mNativeHeap = nativeHeap;
+        mGraphics = graphics;
+        mPrivateOther = privateOther;
+        mStack = stack;
+        mGfxDev = gfxDev;
+        mEGLMTrack = eglMtrack;
+        mGLMTrack = glMtrack;
+        mOtherDev = otherDev;
     }
 
     /**
@@ -134,24 +161,27 @@ public class MemoryInfo {
         }
 
         private static MemoryInfo parse(Debug.MemoryInfo debugMemoryInfo) {
-            MemoryInfo memoryInfo = new MemoryInfo();
 
             try {
-                memoryInfo.mPss = (int) getSummaryTotalPss.invoke(debugMemoryInfo);
-                memoryInfo.mJavaHeap = (int) getSummaryJavaHeap.invoke(debugMemoryInfo);
-                memoryInfo.mNativeHeap = (int) getSummaryNativeHeap.invoke(debugMemoryInfo);
-                memoryInfo.mGraphics = (int) getSummaryGraphics.invoke(debugMemoryInfo);
-                memoryInfo.mPrivateOther = (int) getSummaryPrivateOther.invoke(debugMemoryInfo);
-                memoryInfo.mStack = (int) getSummaryStack.invoke(debugMemoryInfo);
-                memoryInfo.mGfxDev = (int) getOtherPrivate.invoke(debugMemoryInfo, OTHER_GL_DEV);
-                memoryInfo.mEGLMTrack = (int) getOtherPrivate.invoke(debugMemoryInfo, OTHER_GRAPHICS);
-                memoryInfo.mGLMTrack = (int) getOtherPrivate.invoke(debugMemoryInfo, OTHER_GL);
-                memoryInfo.mOtherDev = (int) getOtherPrivate.invoke(debugMemoryInfo, OTHER_UNKNOWN_DEV);
+                int pss = (int) getSummaryTotalPss.invoke(debugMemoryInfo);
+                int javaHeap = (int) getSummaryJavaHeap.invoke(debugMemoryInfo);
+                int nativeHeap = (int) getSummaryNativeHeap.invoke(debugMemoryInfo);
+                int graphics = (int) getSummaryGraphics.invoke(debugMemoryInfo);
+                int privateOther = (int) getSummaryPrivateOther.invoke(debugMemoryInfo);
+                int stack = (int) getSummaryStack.invoke(debugMemoryInfo);
+                int gfxDev = (int) getOtherPrivate.invoke(debugMemoryInfo, OTHER_GL_DEV);
+                int eglMTrack = (int) getOtherPrivate.invoke(debugMemoryInfo, OTHER_GRAPHICS);
+                int glMTrack = (int) getOtherPrivate.invoke(debugMemoryInfo, OTHER_GL);
+                int otherDev = (int) getOtherPrivate.invoke(debugMemoryInfo, OTHER_UNKNOWN_DEV);
+
+                return new MemoryInfo(pss, javaHeap, nativeHeap, graphics, privateOther, stack,
+                        gfxDev,eglMTrack, glMTrack, otherDev);
+
             } catch (Exception e) {
                 e.printStackTrace();
             }
 
-            return memoryInfo;
+            return new MemoryInfo();
         }
     }
 
@@ -199,15 +229,22 @@ public class MemoryInfo {
             MemoryInfo memoryInfo = new MemoryInfo();
 
             try {
-                memoryInfo.mJavaHeap = dalvikPss.getInt(debugMemoryInfo);
-                memoryInfo.mNativeHeap = nativePss.getInt(debugMemoryInfo);
-                memoryInfo.mPrivateOther = otherPss.getInt(debugMemoryInfo);
-                memoryInfo.mOtherDev = (int) getOtherPss.invoke(debugMemoryInfo, 5);
+                int javaHeap = dalvikPss.getInt(debugMemoryInfo);
+                int nativeHeap = nativePss.getInt(debugMemoryInfo);
+                int privateOther = otherPss.getInt(debugMemoryInfo);
+                int otherDev = (int) getOtherPss.invoke(debugMemoryInfo, 5);
+                int pss = memoryInfo.mJavaHeap + memoryInfo.mNativeHeap + memoryInfo.mPrivateOther;
+                int graphics = 0;
+                int stack = 0;
+                int gfxDev = 0;
+                int eglMTrack = 0;
+                int glMTrack = 0;
 
-                memoryInfo.mPss = memoryInfo.mJavaHeap + memoryInfo.mNativeHeap + memoryInfo.mPrivateOther;
+                return new MemoryInfo(pss, javaHeap, nativeHeap, graphics, privateOther, stack,
+                        gfxDev,eglMTrack, glMTrack, otherDev);
+
             } catch (Exception e) {
                 e.printStackTrace();
-                ;
             }
 
             return memoryInfo;

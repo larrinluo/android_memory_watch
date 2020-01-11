@@ -1,2 +1,2 @@
-include ':app', ':app_watch_sdk'
+include ':app', ':app_watch_sdk', ':app_report_client'
 rootProject.name='android_memory_watch'
