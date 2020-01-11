@@ -129,7 +129,6 @@ public class MemoryInfo {
             return new MemoryInfo();
         }
 
-        @SuppressLint("SoonBlockedPrivateApi")
         private static boolean init() {
             if (sInit == -1) {
                 try {

@@ -1,5 +1,6 @@
 package com.ttphoto.resource.watch.report
 
+import android.util.Log
 import com.ttphoto.resource.watch.sdk.AppResourceInfo
 import com.ttphoto.resource.watch.sdk.utils.Utils
 import java.io.File
@@ -10,39 +11,67 @@ class AppWatch(val pid: Int, val folder: String) {
 
     val mFile: File
     val mWriter: FileWriter
+    val startTime = System.currentTimeMillis()
+    var stoped = false
+    var status: UploadStatus? = null
+
+    var lines = ArrayList<String>(10) // lines
+    var lineBegin = 0
 
     init {
-        mFile = File(String.format("%s/resource_%d.log", folder, pid))
-        val parent = mFile.parentFile
-        if (!parent.exists()) {
-            parent.mkdirs()
+        mFile = File(String.format("%s/%d/resource_watch.log", folder, pid)).apply {
+            if (!parentFile.exists()) {
+                parentFile.mkdirs()
+            }
         }
-        mWriter = FileWriter(mFile, true)
+
+        mWriter = FileWriter(mFile, false)
+    }
+
+    private fun writeLine(line: String, flush: Boolean = true) {
+        with(mWriter) {
+            try {
+                write(line)
+                write("\n")
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        synchronized(lines) {
+            lines.add(line)
+        }
+    }
+
+    fun getLines(callback: (line0: Int, lines: ArrayList<String>) -> Unit) {
+        synchronized(lines) {
+            callback(lineBegin, lines)
+        }
+    }
+
+    fun onUploadedLines(line0: Int, lineCount: Int) {
+        synchronized(lines) {
+            for(i in 0 until lineCount) {
+                lines.removeAt(0)
+            }
+
+            lineBegin = line0 + lineCount
+        }
     }
 
     fun start() {
-        try {
-            mWriter.write(AppResourceInfo.getCSVHeaderString())
-            mWriter.write("\n")
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        writeLine(AppResourceInfo.getCSVHeaderString())
     }
 
     fun stop() {
-        Utils.closeScilently(mWriter)
+        Utils.closeSilently(mWriter)
+        stoped = true;
         collect()
         report()
     }
 
     fun onUpdate(info: AppResourceInfo) {
-        try {
-            mWriter.write(info.toString())
-            mWriter.write("\n")
-            mWriter.flush()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        writeLine(info.toString())
     }
 
     /**

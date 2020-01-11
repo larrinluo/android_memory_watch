@@ -122,8 +122,8 @@ public class CPUInfo {
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            Utils.closeScilently(reader);
-            Utils.closeScilently(fileReader);
+            Utils.closeSilently(reader);
+            Utils.closeSilently(fileReader);
         }
 
         return false;

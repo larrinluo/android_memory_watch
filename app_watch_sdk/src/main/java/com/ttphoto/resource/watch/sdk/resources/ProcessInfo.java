@@ -13,7 +13,7 @@ public class ProcessInfo {
     public int openFiles;       // 文件句柄数量
     public int vss;             // 虚存
     public float totalCpu;      // 总cpu使用率
-    public float myCpu;         // 自己多CPU
+    public float myCpu;         //  进程cpu使用率
 
     public static ProcessInfo dump(int pid) {
         ProcessInfo processInfo = new ProcessInfo();
@@ -60,8 +60,8 @@ public class ProcessInfo {
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            Utils.closeScilently(fileReader);
-            Utils.closeScilently(reader);
+            Utils.closeSilently(fileReader);
+            Utils.closeSilently(reader);
         }
     }
 

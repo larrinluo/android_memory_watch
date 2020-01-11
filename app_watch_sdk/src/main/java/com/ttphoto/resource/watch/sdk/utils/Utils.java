@@ -3,13 +3,15 @@ package com.ttphoto.resource.watch.sdk.utils;
 import android.os.Process;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
+import java.util.zip.GZIPOutputStream;
 
 public class Utils {
 
-    public static void closeScilently(Closeable it) {
+    public static void closeSilently(Closeable it) {
         if (it != null) {
             try {
                 it.close();
@@ -43,7 +45,7 @@ public class Utils {
 
         } catch (Exception e) {
         } finally {
-            closeScilently(reader);
+            closeSilently(reader);
         }
 
         return null;
@@ -75,5 +77,22 @@ public class Utils {
             return false;
 
         return processName.equals(getAndroidProcessName());
+    }
+
+    public static byte[] gzip(byte[] input) throws Exception {
+        GZIPOutputStream gzipOS = null;
+        ByteArrayOutputStream byteArrayOS = null;
+        try {
+            byteArrayOS = new ByteArrayOutputStream();
+            gzipOS = new GZIPOutputStream(byteArrayOS);
+            gzipOS.write(input);
+            gzipOS.flush();
+            gzipOS.close();
+            gzipOS = null;
+            return byteArrayOS.toByteArray();
+        } finally {
+            Utils.closeSilently(byteArrayOS);
+            Utils.closeSilently(gzipOS);
+        }
     }
 }
