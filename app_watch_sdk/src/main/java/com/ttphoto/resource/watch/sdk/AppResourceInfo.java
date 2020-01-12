@@ -28,11 +28,12 @@ public class AppResourceInfo {
 
     public static String[] getCSVHeaders() {
         return new String[] {
-            "Pss",
+            "PSS",
             "Java",
             "Native",
             "Graphics",
             "Other",
+            "OtherDev",
             "GfxDev",
             "EGLMTrack",
             "GLMTrack",
@@ -40,8 +41,8 @@ public class AppResourceInfo {
             "Vss",
             "Threads",
             "Fds",
-            "CPU",
-            "MyCpu"
+            "Cpu",
+            "myCpu"
         };
     }
 

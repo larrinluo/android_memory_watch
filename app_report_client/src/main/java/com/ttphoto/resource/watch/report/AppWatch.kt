@@ -60,7 +60,7 @@ class AppWatch(val pid: Int, val folder: String) {
     }
 
     fun start() {
-        writeLine(AppResourceInfo.getCSVHeaderString())
+//        writeLine(AppResourceInfo.getCSVHeaderString())
     }
 
     fun stop() {

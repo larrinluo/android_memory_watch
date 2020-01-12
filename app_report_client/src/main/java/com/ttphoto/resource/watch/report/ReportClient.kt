@@ -91,7 +91,7 @@ class ReportClient {
                         // send to server
                         if (app.status == null) {
                             // need to build upload session
-                            var status = query_upload(0, it.pid, it.startTime)
+                            var status = query_live(0, it.pid, it.startTime)
                             if (status != null) {
                                 it.status = status
                             }
@@ -100,7 +100,7 @@ class ReportClient {
                         app.status?.let {
                             try {
                                 var lineEnd = lineBegin + lineCount - 1
-                                if (upload_resource_lines(
+                                if (upload_resource_live(
                                         it.upload_id,
                                         it.pid,
                                         it.start_time,
@@ -128,9 +128,9 @@ class ReportClient {
         }
 
         /**
-         * 查询服务端上传状态
+         * 查询服务端上传状态 - 实时上传
          */
-        fun query_upload(upload_id: Int, pid: Int, start_time: Long): UploadStatus? {
+        fun query_live(upload_id: Int, pid: Int, start_time: Long): UploadStatus? {
             var params = HashMap<String, Any>().apply {
                 if (upload_id != 0)
                     this["id"] = upload_id
@@ -140,7 +140,7 @@ class ReportClient {
             }
 
             try {
-                val response = HttpUtil.getHttpResponse(reportUrl("/query_upload"), params, true)
+                val response = HttpUtil.getHttpResponse(reportUrl("/query_live"), params, true)
                 var json = JSONObject(response)
                 var status = UploadStatus.fromJson(json)
                 if (status != null) {
@@ -160,7 +160,7 @@ class ReportClient {
         /**
          * 上传ResourceWatch数据到服务器
          */
-        fun upload_resource_lines(upload_id: Int, pid: Int, start_time: Long, line0: Int, line1: Int, lines: String): Int {
+        fun upload_resource_live(upload_id: Int, pid: Int, start_time: Long, line0: Int, line1: Int, lines: String): Int {
             var params = HashMap<String, String>().apply {
                 this["req"] = "resources"
                 this["upload_id"] = upload_id.toString()
@@ -172,7 +172,8 @@ class ReportClient {
             }
 
             try {
-                var result = HttpUtil.postWithStatusCode(reportUrl("/upload"), params, true)
+                // 实时上传接口
+                var result = HttpUtil.postWithStatusCode(reportUrl("/upload_live"), params, true)
                 if (result == 200)
                     return 0;
             } catch (e: Exception) {
