@@ -1,6 +1,5 @@
 package com.ttphoto.resource.watch.report
 
-import android.util.Log
 import com.ttphoto.resource.watch.sdk.AppResourceInfo
 import com.ttphoto.resource.watch.sdk.utils.Utils
 import java.io.File

@@ -20,6 +20,8 @@ class MainActivity : AppCompatActivity() {
             } else {
                 PermissionManager.request(this, 1000)
             }
+        } else {
+            cpuTestThread.start();
         }
     }
 
@@ -37,6 +39,8 @@ class MainActivity : AppCompatActivity() {
 
     val cpuTestThread = object: Thread() {
         override fun run() {
+            var buffer: ByteArray? = null
+            var bytes = 1024 * 1024
             while (true) {
                 sleep(3000);
                 for (i in 0..1000) {
@@ -46,6 +50,12 @@ class MainActivity : AppCompatActivity() {
                     }
                     Log.d("cpuTestThread", str);
                 }
+
+                bytes *= 2
+                if (bytes > 20 * 1024 * 1024)
+                    bytes = 1024 * 1024
+
+                buffer = ByteArray(bytes.toInt())
             }
         }
     }

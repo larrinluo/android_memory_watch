@@ -37,14 +37,10 @@ public class ProcessInfo {
             fileReader = new FileReader(path);
             reader = new BufferedReader(fileReader);
             String line;
-            int targets = 3;
+            int targets = 2;
             while (targets > 0 && (line= reader.readLine()) != null) {
 
-                if (line.startsWith("FDSize:")) {
-                    String subStr = line.substring(7).trim();
-                    processInfo.openFiles = Integer.parseInt(subStr);
-                    targets--;
-                } else if (line.startsWith("Threads:")) {
+                if (line.startsWith("Threads:")) {
                     String subStr = line.substring(8).trim();
                     processInfo.threads = Integer.parseInt(subStr);
                     targets--;
@@ -55,6 +51,12 @@ public class ProcessInfo {
                     processInfo.vss = Integer.parseInt(subStr);
                     targets--;
                 }
+            }
+
+            File fdDir = new File(String.format("/proc/%d/fd", pid));
+            String[] fds = fdDir.list();
+            if (fds != null) {
+                processInfo.openFiles = fds.length;
             }
 
         } catch (Exception e) {
