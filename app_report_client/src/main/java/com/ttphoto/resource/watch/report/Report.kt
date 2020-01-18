@@ -2,8 +2,9 @@ package com.ttphoto.resource.watch.report
 
 import android.content.Context
 import com.ttphoto.resource.watch.sdk.AppResourceInfo
+import com.ttphoto.resource.watch.sdk.IAppResourceWatchClient
 import com.ttphoto.resource.watch.sdk.IAppWatchCallback
-import com.ttphoto.resource.watch.sdk.services.AppResourceWatchClient
+import com.ttphoto.resource.watch.sdk.client.AppResourceWatchClient
 import com.ttphoto.resource.watch.sdk.services.AppResourceWatchService
 import com.ttphoto.resource.watch.sdk.utils.Utils
 import java.io.File
@@ -50,10 +51,30 @@ class Report {
                     override fun onUpdate(info: AppResourceInfo) {
                         mCurrentApp?.onUpdate(info)
                     }
+
+                    override fun onAnrWarnning(client: IAppResourceWatchClient, pid: Int, message: Int, delay: Long, timeout: Long) {
+                        mCurrentApp?.let {
+                            if (pid == it.pid) {
+                                it.onAnrWarning(client, message, delay, timeout)
+                            }
+                        }
+                    }
+
+                    override fun onMessageSlow(pid: Int, message: Int, delay: Long, dispatch: Long) {
+                        mCurrentApp?.let {
+                            if (pid == it.pid) {
+                                it.onMessageSlow(message, delay, dispatch)
+                            }
+                        }
+                    }
                 })
 
                 ReportClient.start()
             }
+        }
+
+        fun startWatchMainLooper(anrTimeout: Int = 5000) {
+            AppResourceWatchClient.startWartchMainLooper(anrTimeout)
         }
 
         fun startBatchUploadTask() {

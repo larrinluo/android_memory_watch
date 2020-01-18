@@ -1,6 +1,5 @@
-package com.ttphoto.resource.watch.sdk.resources;
+package com.ttphoto.resource.watch.sdk.performance;
 
-import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.os.Build;

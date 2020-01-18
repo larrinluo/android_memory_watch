@@ -1,5 +1,6 @@
 package com.ttphoto.resource.watch.report.utils;
 
+import com.ttphoto.resource.watch.sdk.utils.FileUtil;
 import com.ttphoto.resource.watch.sdk.utils.Utils;
 
 import java.io.BufferedInputStream;

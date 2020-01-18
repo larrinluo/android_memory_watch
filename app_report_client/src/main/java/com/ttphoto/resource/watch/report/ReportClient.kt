@@ -1,8 +1,9 @@
 package com.ttphoto.resource.watch.report
 
 import android.util.Log
-import com.ttphoto.resource.watch.report.utils.FileUtil
 import com.ttphoto.resource.watch.report.utils.HttpUtil
+import com.ttphoto.resource.watch.sdk.client.AppResourceWatchClient
+import com.ttphoto.resource.watch.sdk.utils.FileUtil
 import org.json.JSONObject
 import java.lang.Exception
 import java.lang.StringBuilder
@@ -64,65 +65,104 @@ class ReportClient {
         fun reportLoop() {
             while (running) {
 
-                currentApp?.let {
-
-                    var app = it
-                    var lineBegin = -1
-                    var lineCount = 0
-                    var lineString = ""
-
-                    it.getLines {line0, lines ->
-                        lineBegin = line0
-                        lineCount = lines.size
-
-                        var builder = StringBuilder()
-                        for (line in lines) {
-                            builder.append(line)
-                            builder.append("\n")
-                        }
-
-                        lineString = builder.toString()
-                    }
-
-                    Log.d("ReportClient", String.format("%d %d\n%s", lineBegin, lineCount, lineString))
-
-                    if (lineCount > 0 && lineString.length > 0) {
-
-                        // send to server
-                        if (app.status == null) {
-                            // need to build upload session
-                            var status = query_live(0, it.pid, it.startTime)
-                            if (status != null) {
-                                it.status = status
-                            }
-                        }
-
-                        app.status?.let {
-                            try {
-                                var lineEnd = lineBegin + lineCount - 1
-                                if (upload_resource_live(
-                                        it.upload_id,
-                                        it.pid,
-                                        it.start_time,
-                                        lineBegin,
-                                        lineEnd,
-                                        lineString
-                                    ) == 0
-                                ) {
-                                    updateAppUpdateStatus(app, lineEnd, false)
-                                    app.onUploadedLines(lineBegin, lineCount)
-                                } else { // 终止app的实时上传
-                                    //                                currentApp = null
-                                }
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
-                        }
-                    }
-                }
+                reportLive()
 
                 synchronized(stopSignal) {
                     stopSignal.wait(10000)  // 30秒check一次
+                }
+            }
+        }
+
+        /**
+         * 实时监控上报
+         */
+        fun reportLive() {
+
+            currentApp?.let {
+
+                var app = it
+
+                val performanceReportInfo = LiveReportLinesInfo("perf", it.performanceLines)
+                val slowMessageReportInfo = LiveReportLinesInfo("slow", it.slowMessageLines)
+                var traceVersion = 0
+
+                Log.d("ReportClient", String.format("%d %d\n%s", performanceReportInfo.lineBegin,
+                    performanceReportInfo.lineCount, performanceReportInfo.lineString))
+
+                val params = HashMap<String, String>(3).apply {
+                    //收集上报信息
+
+                    performanceReportInfo.fillUploadData(this)
+                    slowMessageReportInfo.fillUploadData(this)
+
+                    app.getAnrTrace { traces, version ->
+                        if (traces != null) {
+                            this["trace"] = traces
+                            traceVersion = version
+                        }
+                    }
+
+                    app.javaUncachedException?.let {
+                        this["jExcp"] = it
+                    }
+                }
+
+                if (params.isNotEmpty()) {
+
+                    // send to server
+                    if (app.status == null) {
+                        // need to build upload session
+                        var status = query_live(0, it.pid, it.startTime)
+                        if (status != null) {
+                            it.status = status
+                        }
+                    }
+
+                    app.status?.let {
+                        try {
+
+                            params["req"] = "live"
+                            params["upload_id"] = it.upload_id.toString()
+                            params["pid"] = it.pid.toString()
+
+                            // 实时上传接口
+                            var result = HttpUtil.postWithStatusCode(reportUrl("/upload_live"), params, true)
+                            if (result == 0) { // 上传成功
+
+                                if (params.containsKey("jExcep")) {
+                                    app.javaUncachedException = null
+                                }
+
+                                if (params.containsKey("trace")) {
+                                    app.reportedTraceVersion = traceVersion
+                                }
+
+                                // update upload status
+                                updateAppUpdateStatus(app, performanceReportInfo.lineEnd, false)
+
+                                if (performanceReportInfo.lineCount > 0) {
+                                    app.performanceLines.onUploadedLines(
+                                        performanceReportInfo.lineBegin,
+                                        performanceReportInfo.lineCount
+                                    )
+                                }
+
+                                if (slowMessageReportInfo.lineCount > 0) {
+                                    app.slowMessageLines.onUploadedLines(
+                                        slowMessageReportInfo.lineBegin,
+                                        slowMessageReportInfo.lineCount
+                                    )
+                                }
+
+                            } else {
+                                // 终止app的实时上传
+                                // currentApp = null
+                            }
+
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
                 }
             }
         }
@@ -185,3 +225,33 @@ class ReportClient {
     }
 }
 
+class LiveReportLinesInfo(val reportName: String, val reportLines: LiveReportLines) {
+    var lineBegin = 0
+    var lineCount = 0
+    var lineString = ""
+    var lineEnd = 0
+
+    init {
+        reportLines.getLines { line0, lines ->
+            lineBegin = line0
+            lineCount = lines.size
+
+            var builder = StringBuilder()
+            for (line in lines) {
+                builder.append(line)
+                builder.append("\n")
+            }
+
+            lineString = builder.toString()
+            lineEnd = lineBegin + lineCount - 1
+        }
+    }
+
+    fun fillUploadData(map: HashMap<String, String>) {
+        if (lineCount > 0) {
+            map[reportName + "_line0"] = lineBegin.toString()
+            map[reportName + "_line1"] = lineEnd.toString()
+            map[reportName + "_lines"] = lineString
+        }
+    }
+}

@@ -6,4 +6,5 @@ package com.ttphoto.resource.watch.sdk;
 interface IAppResourceWatchClient {
 
     void dumpJavaHeap(String fileName);  // dump HprofData to file
+    void dumpTrace(String traceFile);  // dump Trace to file
 }

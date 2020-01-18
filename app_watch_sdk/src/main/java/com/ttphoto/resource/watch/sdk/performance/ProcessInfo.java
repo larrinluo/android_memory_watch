@@ -1,4 +1,4 @@
-package com.ttphoto.resource.watch.sdk.resources;
+package com.ttphoto.resource.watch.sdk.performance;
 
 import com.ttphoto.resource.watch.sdk.utils.Utils;
 

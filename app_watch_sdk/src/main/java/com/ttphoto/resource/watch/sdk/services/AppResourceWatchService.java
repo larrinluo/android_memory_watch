@@ -7,11 +7,12 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Binder;
 import android.os.IBinder;
+import android.os.Process;
 import android.os.RemoteException;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
-import com.ttphoto.resource.watch.sdk.resources.CPUInfo;
+import com.ttphoto.resource.watch.sdk.performance.CPUInfo;
 import com.ttphoto.resource.watch.sdk.IAppResourceWatchClient;
 import com.ttphoto.resource.watch.sdk.AppResourceInfo;
 import com.ttphoto.resource.watch.sdk.IAppResourceWatchService;
@@ -48,9 +49,23 @@ public class AppResourceWatchService extends Service {
         public void onAppExist(int pid) {
             Log.d("AppResource", String.format("process %d exists", pid));
         }
+
+        @Override
+        public void onAnrWarnning(IAppResourceWatchClient client, int pid, int message, long delay, long timeout) {
+            Log.w("AppWatch", String.format("Anr warning: pid = %d, msg = %d, delay = %d, timeout = %d",
+                    pid, message, delay, timeout));
+        }
+
+        @Override
+        public void onMessageSlow(int pid, int message, long delay, long dispatch) {
+            Log.w("AppWatch", String.format("OnMessage Slow: pid = %d, msg = %d, delay = %d, timeout = %d",
+                    pid, message, delay, dispatch));
+        }
     };
 
     IBinder mService = new IAppResourceWatchService.Stub() {
+
+        IAppResourceWatchClient client;
 
         @Override
         public void startWatch(long maxJavaHeap, IBinder watchClient) throws RemoteException {
@@ -61,7 +76,7 @@ public class AppResourceWatchService extends Service {
             if (watcher != null && pid == watcher.mPid) // 重复绑定
                 return;
 
-            IAppResourceWatchClient client = IAppResourceWatchClient.Stub.asInterface(watchClient);
+            client = IAppResourceWatchClient.Stub.asInterface(watchClient);
             if (pid == 0 || maxJavaHeap <= 16 * 1024 * 1024 || client == null) // invalidate request
                 return;
 
@@ -71,6 +86,16 @@ public class AppResourceWatchService extends Service {
 
             watcher = new ResourceWatcher(pid, maxJavaHeap, client, AppResourceWatchService.this, sCallback);
             watcher.start();
+        }
+
+        @Override
+        public void onAnrWarnning(int message, long delay, long timeout, String traceFile) throws RemoteException {
+            sCallback.onAnrWarnning(client, Binder.getCallingPid(), message, delay, timeout);
+        }
+
+        @Override
+        public void onMessageSlow(int message, long delay, long dispatch) throws RemoteException {
+            sCallback.onMessageSlow(Binder.getCallingPid(), message, delay, dispatch);
         }
     };
 

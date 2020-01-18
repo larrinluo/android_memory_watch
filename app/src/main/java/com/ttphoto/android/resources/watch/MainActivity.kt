@@ -1,9 +1,16 @@
 package com.ttphoto.android.resources.watch
 
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.Process
 import android.support.v7.app.AppCompatActivity
 import android.util.Log
 import com.ttphoto.resource.watch.report.Report
+import java.io.File
+import java.io.FileReader
+import java.io.FileWriter
+import java.lang.Exception
 import kotlin.math.sqrt
 
 class MainActivity : AppCompatActivity() {
@@ -16,12 +23,13 @@ class MainActivity : AppCompatActivity() {
 
             if (PermissionManager.check(this)) {
                 Report.start("watch", "/sdcard/app_watch", Config.reportUrl,this)
-                cpuTestThread.start();
+                Report.startWatchMainLooper()
+                cpuTestThread.start()
             } else {
                 PermissionManager.request(this, 1000)
             }
         } else {
-            cpuTestThread.start();
+            cpuTestThread.start()
         }
     }
 
@@ -41,8 +49,19 @@ class MainActivity : AppCompatActivity() {
         override fun run() {
             var buffer: ByteArray? = null
             var bytes = 1024 * 1024
+
+            val handler = Handler(Looper.getMainLooper())
+            handler.post(object: Runnable {
+                override fun run() {
+                    sleep(10000)
+                    Log.d("SLOW_TEST", "Slow message ...")
+                    handler.post(Runnable@this)
+                }
+            })
+
             while (true) {
                 sleep(3000);
+
                 for (i in 0..1000) {
                     var str = String.format("this is string %d, %d , %d, %d", i, i, i, i);
                     for (j in 0..10000) {
@@ -59,4 +78,5 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
 }
