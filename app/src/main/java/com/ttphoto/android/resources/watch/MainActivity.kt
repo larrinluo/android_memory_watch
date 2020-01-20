@@ -6,11 +6,8 @@ import android.os.Looper
 import android.os.Process
 import android.support.v7.app.AppCompatActivity
 import android.util.Log
+import android.view.View
 import com.ttphoto.resource.watch.report.Report
-import java.io.File
-import java.io.FileReader
-import java.io.FileWriter
-import java.lang.Exception
 import kotlin.math.sqrt
 
 class MainActivity : AppCompatActivity() {
@@ -18,6 +15,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
 
         if (!Report.running) {
 
@@ -30,6 +28,10 @@ class MainActivity : AppCompatActivity() {
             }
         } else {
             cpuTestThread.start()
+        }
+
+        findViewById<View>(R.id.Button_ANR).setOnClickListener {
+            Process.sendSignal(Process.myPid(), Process.SIGNAL_QUIT)
         }
     }
 
