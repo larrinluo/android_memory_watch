@@ -47,19 +47,6 @@ public class LooperWatch {
 
     final static long DISPATCH_SLOW = 1000;
 
-    static class AnrWatchRunnable implements Runnable {
-
-        int what;
-        long delay;
-        long when;
-        Listener listener;
-
-        @Override
-        public void run() {
-            listener.onAnrWarning(what, delay, SystemClock.uptimeMillis() - when);
-        }
-    }
-
     /**
      * 开始对looper进行健康
      * @param looper
@@ -75,7 +62,7 @@ public class LooperWatch {
             public void run() {
 
                 if (listener == null) { // 没有回调， 监控无意义
-                    Log.w("LooperWatch", "Null Listener provided, LooperWatch should work with Listener!!");
+                    Log.w("LooperWatch", "LooperWatch should work with non null Listener!!");
                     return;
                 }
 
@@ -107,18 +94,6 @@ public class LooperWatch {
                 Binder.clearCallingIdentity();
                 final long ident = Binder.clearCallingIdentity();
 
-                AnrWatchRunnable anrWatchRunnable = null;
-
-                int anrDelay = anrWarningTime;
-                if (anrDelay > 0 && anrDelay > 10000) {
-                    anrDelay = 10000;
-                }
-
-                if (looper == Looper.getMainLooper() && anrDelay > 0) {
-                    anrWatchRunnable = new AnrWatchRunnable();
-                    anrWatchRunnable.listener = listener;
-                }
-
                 // 进入监控循环
                 for (;;) {
 
@@ -138,16 +113,7 @@ public class LooperWatch {
 
                     long delay = dispatchStart - msg.getWhen();
 
-                    if (anrWatchRunnable != null) {
-                        anrWatchRunnable.what = msg.what;
-                        anrWatchRunnable.delay = delay;
-                        anrWatchRunnable.when = msg.getWhen();
-                        WatchDog.handler().postDelayed(anrWatchRunnable, anrDelay);
-                    }
-
                     msg.getTarget().dispatchMessage(msg);
-
-                    WatchDog.handler().removeCallbacks(anrWatchRunnable);
 
                     dispatchEnd = SystemClock.uptimeMillis();
                     long duration = dispatchEnd - dispatchStart;

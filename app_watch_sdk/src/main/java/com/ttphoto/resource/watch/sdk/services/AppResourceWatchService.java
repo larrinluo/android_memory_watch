@@ -7,15 +7,14 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Binder;
 import android.os.IBinder;
-import android.os.Process;
 import android.os.RemoteException;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
 import com.ttphoto.resource.watch.sdk.performance.CPUInfo;
-import com.ttphoto.resource.watch.sdk.IAppResourceWatchClient;
-import com.ttphoto.resource.watch.sdk.AppResourceInfo;
-import com.ttphoto.resource.watch.sdk.IAppResourceWatchService;
+import com.ttphoto.resource.watch.sdk.IAppWatchClient;
+import com.ttphoto.resource.watch.sdk.AppPerformanceInfo;
+import com.ttphoto.resource.watch.sdk.IAppWatchService;
 import com.ttphoto.resource.watch.sdk.IAppWatchCallback;
 import com.ttphoto.resource.watch.sdk.utils.Utils;
 
@@ -41,7 +40,7 @@ public class AppResourceWatchService extends Service {
         }
 
         @Override
-        public void onUpdate(AppResourceInfo info) {
+        public void onUpdate(AppPerformanceInfo info) {
             Log.d("AppResource", info.toString());
         }
 
@@ -51,9 +50,8 @@ public class AppResourceWatchService extends Service {
         }
 
         @Override
-        public void onAnrWarnning(IAppResourceWatchClient client, int pid, int message, long delay, long timeout) {
-            Log.w("AppWatch", String.format("Anr warning: pid = %d, msg = %d, delay = %d, timeout = %d",
-                    pid, message, delay, timeout));
+        public void onAnr(int pid) {
+            Log.w("AppWatch", String.format("Anr warning: pid = %d"));
         }
 
         @Override
@@ -63,9 +61,9 @@ public class AppResourceWatchService extends Service {
         }
     };
 
-    IBinder mService = new IAppResourceWatchService.Stub() {
+    IBinder mService = new IAppWatchService.Stub() {
 
-        IAppResourceWatchClient client;
+        IAppWatchClient client;
 
         @Override
         public void startWatch(long maxJavaHeap, IBinder watchClient) throws RemoteException {
@@ -76,7 +74,7 @@ public class AppResourceWatchService extends Service {
             if (watcher != null && pid == watcher.mPid) // 重复绑定
                 return;
 
-            client = IAppResourceWatchClient.Stub.asInterface(watchClient);
+            client = IAppWatchClient.Stub.asInterface(watchClient);
             if (pid == 0 || maxJavaHeap <= 16 * 1024 * 1024 || client == null) // invalidate request
                 return;
 
@@ -89,8 +87,9 @@ public class AppResourceWatchService extends Service {
         }
 
         @Override
-        public void onAnrWarnning(int message, long delay, long timeout, String traceFile) throws RemoteException {
-            sCallback.onAnrWarnning(client, Binder.getCallingPid(), message, delay, timeout);
+        public void onAnr() throws RemoteException {
+            int pid = Binder.getCallingPid();
+            sCallback.onAnr(pid);
         }
 
         @Override
@@ -127,7 +126,7 @@ class ResourceWatcher {
     int mPid;
     long mMaxJavaHeap;
 
-    private IAppResourceWatchClient mClient;
+    private IAppWatchClient mClient;
     private Context mContext;
     private long mStartTime;
     private boolean mRunning;
@@ -149,7 +148,7 @@ class ResourceWatcher {
             while (mRunning) {
                 if (count >= 5) {
                     mCPUInfo.update(true);
-                    AppResourceInfo resourceInfo = AppResourceInfo.dump(mContext, mPid);
+                    AppPerformanceInfo resourceInfo = AppPerformanceInfo.dump(mContext, mPid);
                     resourceInfo.processInfo.totalCpu = mCPUInfo.getmTotalCpu();
                     resourceInfo.processInfo.myCpu = mCPUInfo.getmMyCpu();
                     if (!resourceInfo.processInfo.running) {
@@ -177,7 +176,7 @@ class ResourceWatcher {
         }
     };
 
-    ResourceWatcher(int pid, long maxJavaHeap, IAppResourceWatchClient client, Context context, IAppWatchCallback callback) {
+    ResourceWatcher(int pid, long maxJavaHeap, IAppWatchClient client, Context context, IAppWatchCallback callback) {
         mPid = pid;
         mMaxJavaHeap = maxJavaHeap;
         mClient = client;

@@ -11,15 +11,15 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.util.Log;
 
-import com.ttphoto.resource.watch.sdk.IAppResourceWatchClient;
-import com.ttphoto.resource.watch.sdk.IAppResourceWatchService;
+import com.ttphoto.resource.watch.sdk.IAppWatchClient;
+import com.ttphoto.resource.watch.sdk.IAppWatchService;
 import com.ttphoto.resource.watch.sdk.services.AppResourceWatchService;
 import com.ttphoto.resource.watch.sdk.utils.Utils;
 
 // Run in application process
-public class AppResourceWatchClient {
+public class AppWatchClient {
 
-    private static IAppResourceWatchService service;
+    private static IAppWatchService service;
     private static Context sApplicationContext;
 
     /**
@@ -33,7 +33,9 @@ public class AppResourceWatchClient {
         context.bindService(intent, sConnection, Context.BIND_AUTO_CREATE);
 
         sApplicationContext = context.getApplicationContext();
-        TraceDumper.init(sApplicationContext);
+
+        String traceFile = String.format("/sdcard/app_watch/%d/traces.txt", Process.myPid());
+        AnrWartch.init(sApplicationContext, traceFile, AnrWartch.OUTPUT_REDIRECT);
     }
 
     public static void startWartchMainLooper(int anrWarningTime) {
@@ -42,12 +44,12 @@ public class AppResourceWatchClient {
             return;
 
         if (anrWarningTime < 0) {
-            Log.w("AppResourceWatchClient", "startWartchMainLooper warning not started cause startWartchMainLooper < 0: " + anrWarningTime);
+            Log.w("AppWatchClient", "startWartchMainLooper warning not started cause startWartchMainLooper < 0: " + anrWarningTime);
             return;
         }
 
         if (anrWarningTime > 10000) {
-            Log.w("AppResourceWatchClient", "startWartchMainLooper adjust anrWarningTime to 10000 sec : " + anrWarningTime);
+            Log.w("AppWatchClient", "startWartchMainLooper adjust anrWarningTime to 10000 sec : " + anrWarningTime);
             anrWarningTime = 10000;
         }
 
@@ -59,9 +61,7 @@ public class AppResourceWatchClient {
                 // 首先在本进程完成trace dump, 然后通知service
                 if (service != null) {
                     try {
-                        String traceFile = String.format("/sdcard/app_watch/%d/traces.txt", Process.myPid());
-                        TraceDumper.setTracePath(traceFile);
-                        service.onAnrWarnning(message, delay, timeout, traceFile);
+                        service.onAnr();
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -81,8 +81,18 @@ public class AppResourceWatchClient {
         });
     }
 
+    public static void onAnr() {
+        if (service != null) {
+            try {
+                service.onAnr();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     //  implementation here
-    private static IAppResourceWatchClient.Stub sBinder = new IAppResourceWatchClient.Stub() {
+    private static IAppWatchClient.Stub sBinder = new IAppWatchClient.Stub() {
 
         @Override
         public void dumpJavaHeap(String fileName) throws RemoteException {
@@ -95,14 +105,14 @@ public class AppResourceWatchClient {
 
         @Override
         public void dumpTrace(String traceFile) throws RemoteException {
-            TraceDumper.setTracePath(traceFile);
+//            AnrWartch.setTracePath(traceFile);
         }
     };
 
     private static ServiceConnection sConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder binder) {
-            service = IAppResourceWatchService.Stub.asInterface(binder);
+            service = IAppWatchService.Stub.asInterface(binder);
             if (service != null) {
                 try {
                     service.startWatch(Runtime.getRuntime().maxMemory(), sBinder);

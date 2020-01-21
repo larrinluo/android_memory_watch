@@ -69,7 +69,7 @@ class MainActivity : AppCompatActivity() {
                     for (j in 0..10000) {
                         sqrt(i.toDouble()) * sqrt(i.toDouble()) * sqrt(i.toDouble()) * sqrt(i.toDouble())
                     }
-                    Log.d("cpuTestThread", str);
+//                    Log.d("cpuTestThread", str);
                 }
 
                 bytes *= 2

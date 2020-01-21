@@ -2,7 +2,6 @@ package com.ttphoto.resource.watch.report
 
 import android.util.Log
 import com.ttphoto.resource.watch.report.utils.HttpUtil
-import com.ttphoto.resource.watch.sdk.client.AppResourceWatchClient
 import com.ttphoto.resource.watch.sdk.utils.FileUtil
 import org.json.JSONObject
 import java.lang.Exception

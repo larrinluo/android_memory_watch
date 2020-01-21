@@ -4,7 +4,7 @@ import android.os.FileObserver;
 import android.os.Process;
 import android.support.annotation.Nullable;
 
-import com.ttphoto.resource.watch.sdk.IAppResourceWatchClient;
+import com.ttphoto.resource.watch.sdk.IAppWatchClient;
 
 public class DumpUtil {
 
@@ -47,7 +47,7 @@ public class DumpUtil {
      * @param traceFile
      * @return
      */
-    public static boolean dumpTrace(IAppResourceWatchClient client, int pid, long timeout, String traceFile) {
+    public static boolean dumpTrace(IAppWatchClient client, int pid, long timeout, String traceFile) {
 
         try {
             client.dumpTrace(traceFile);

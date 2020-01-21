@@ -1,13 +1,10 @@
 package com.ttphoto.resource.watch.report
 
+import android.os.FileObserver
 import android.util.Log
-import com.ttphoto.resource.watch.sdk.AppResourceInfo
-import com.ttphoto.resource.watch.sdk.IAppResourceWatchClient
-import com.ttphoto.resource.watch.report.utils.DumpUtil
+import com.ttphoto.resource.watch.sdk.AppPerformanceInfo
 import com.ttphoto.resource.watch.sdk.utils.FileUtil
 import com.ttphoto.resource.watch.sdk.utils.Utils
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
 import java.io.File
 import java.io.FileWriter
 
@@ -68,7 +65,7 @@ class AppWatch(val pid: Int, val folder: String) {
         }
 
     init {
-        mPerformanceFile = File(String.format("%s/%d/resource_watch.log", folder, pid)).apply {
+        mPerformanceFile = File(String.format("%s/%d/performance.log", folder, pid)).apply {
             if (!parentFile.exists()) {
                 parentFile.mkdirs()
             }
@@ -81,8 +78,9 @@ class AppWatch(val pid: Int, val folder: String) {
     }
 
     fun stop() {
+        Log.d("ANR_WARN", "stop watch trace file: " + traceFile())
         Utils.closeSilently(mPerformanceWriter)
-        stoped = true;
+        stoped = true
         collect()
         report()
     }
@@ -100,7 +98,7 @@ class AppWatch(val pid: Int, val folder: String) {
         performanceLines.addLine(line)
     }
 
-    fun onUpdate(info: AppResourceInfo) {
+    fun onUpdate(info: AppPerformanceInfo) {
         writePerformanceLine(info.toString())
     }
 
@@ -119,17 +117,9 @@ class AppWatch(val pid: Int, val folder: String) {
         }
     }
 
-    fun onAnrWarning(client: IAppResourceWatchClient, message: Int, delay: Long, timeout: Long) {
-        GlobalScope.async {
-            synchronized(AppWatch@this) {
-                if (DumpUtil.dumpTrace(client, pid, timeout, traceFile())) {
-                    traceVersion++
-                    Log.d("ANR_WARN", "anr warning[" + traceVersion + "], trace dumped to " + traceFile())
-                } else {
-                    Log.d("ANR_WARN", "trace dumped failed!!!")
-                }
-            }
-        }
+    fun onAnr() {
+        traceVersion++
+        Log.d("ANR_WARN", "anr warning[" + traceVersion + "], trace dumped to " + traceFile())
     }
 
     fun onMessageSlow(message: Int, delay: Long, dispatch: Long) {
@@ -154,6 +144,8 @@ class AppWatch(val pid: Int, val folder: String) {
      */
     fun report() {
     }
+
+
 
 
 }

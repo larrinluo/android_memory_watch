@@ -3,9 +3,13 @@
 
 #include <climits>
 
-void installHook(int sdkVersion);
-void setTraceFile(const char *path);
+enum ANR_OUTPUT_MODE {
+    ANR_REDIRECT,
+    ANR_COPY
+};
 
+void installHook(int sdkVersion, const char *path, int output_mode);
+void reportAnr();
 
 
 #endif // APP_WARTCH_SDK__ANDROID_UTIL__H

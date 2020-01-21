@@ -25,7 +25,7 @@ add_library( appWatch
              ${XHOOK_SRC}/xh_util.c
              ${XHOOK_SRC}/xh_version.c
 
-             jni/app_wartch_sdk.cpp
+             jni/app_watch_sdk.cpp
              support/trace_hook.cpp)
 
 find_library( log-lib log)
@@ -33,5 +33,4 @@ find_library( log-lib log)
 target_link_libraries( appWatch
 
                        ${log-lib}
-#                       "/wd_1t/work/github/xHook/libxhook/libs/${ANDROID_ABI}/libxhook.so"
         )

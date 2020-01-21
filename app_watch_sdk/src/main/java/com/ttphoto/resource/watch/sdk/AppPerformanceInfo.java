@@ -6,16 +6,16 @@ import android.support.annotation.NonNull;
 import com.ttphoto.resource.watch.sdk.performance.MemoryInfo;
 import com.ttphoto.resource.watch.sdk.performance.ProcessInfo;
 
-public class AppResourceInfo {
+public class AppPerformanceInfo {
 
     public int pid;
     public long timestamp;
     public MemoryInfo memoryInfo;
     public ProcessInfo processInfo;
 
-    public static AppResourceInfo dump(Context context, int pid) {
+    public static AppPerformanceInfo dump(Context context, int pid) {
 
-        AppResourceInfo resourceInfo = new AppResourceInfo();
+        AppPerformanceInfo resourceInfo = new AppPerformanceInfo();
         resourceInfo.pid = pid;
         resourceInfo.timestamp = System.currentTimeMillis();
         resourceInfo.processInfo = ProcessInfo.dump(pid);

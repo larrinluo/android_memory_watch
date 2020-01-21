@@ -1,10 +1,10 @@
 package com.ttphoto.resource.watch.report
 
 import android.content.Context
-import com.ttphoto.resource.watch.sdk.AppResourceInfo
-import com.ttphoto.resource.watch.sdk.IAppResourceWatchClient
+import com.ttphoto.resource.watch.sdk.AppPerformanceInfo
+import com.ttphoto.resource.watch.sdk.IAppWatchClient
 import com.ttphoto.resource.watch.sdk.IAppWatchCallback
-import com.ttphoto.resource.watch.sdk.client.AppResourceWatchClient
+import com.ttphoto.resource.watch.sdk.client.AppWatchClient
 import com.ttphoto.resource.watch.sdk.services.AppResourceWatchService
 import com.ttphoto.resource.watch.sdk.utils.Utils
 import java.io.File
@@ -28,7 +28,7 @@ class Report {
 
             if (Utils.isMainProcess()) { // Start watch service in remote process
 
-                AppResourceWatchClient.start(context)
+                AppWatchClient.start(context)
 
             } else if (Utils.isWatchProcess(processName)) { // set callback in watch process
 
@@ -48,14 +48,14 @@ class Report {
                         ReportClient.onAppStoped()
                     }
 
-                    override fun onUpdate(info: AppResourceInfo) {
+                    override fun onUpdate(info: AppPerformanceInfo) {
                         mCurrentApp?.onUpdate(info)
                     }
 
-                    override fun onAnrWarnning(client: IAppResourceWatchClient, pid: Int, message: Int, delay: Long, timeout: Long) {
+                    override fun onAnr(pid: Int) {
                         mCurrentApp?.let {
                             if (pid == it.pid) {
-                                it.onAnrWarning(client, message, delay, timeout)
+                                it.onAnr()
                             }
                         }
                     }
@@ -74,7 +74,7 @@ class Report {
         }
 
         fun startWatchMainLooper(anrTimeout: Int = 5000) {
-            AppResourceWatchClient.startWartchMainLooper(anrTimeout)
+            AppWatchClient.startWartchMainLooper(anrTimeout)
         }
 
         fun startBatchUploadTask() {
