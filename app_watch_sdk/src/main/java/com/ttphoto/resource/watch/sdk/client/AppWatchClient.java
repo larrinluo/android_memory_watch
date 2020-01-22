@@ -41,7 +41,7 @@ public class AppWatchClient {
 
     }
 
-    public static void startWartchMainLooper(int anrWarningTime) {
+    public static void startMainLooper(int anrWarningTime, Looper looper) {
 
         if (!Utils.isMainProcess())
             return;
@@ -56,7 +56,7 @@ public class AppWatchClient {
             anrWarningTime = 10000;
         }
 
-        LooperWatch.startWatch(Looper.getMainLooper(), anrWarningTime, new LooperWatch.Listener() {
+        LooperWatch.startWatch(looper, anrWarningTime, new LooperWatch.Listener() {
 
             @Override
             public void onAnrWarning(int message, long delay, long timeout) {

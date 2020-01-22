@@ -1,27 +1,32 @@
 package com.ttphoto.android.resources.watch
 
-import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.os.Process
+import android.os.*
 import android.support.v7.app.AppCompatActivity
 import android.util.Log
 import android.view.View
 import com.ttphoto.resource.watch.report.Report
+import com.ttphoto.resource.watch.sdk.client.AppWatchClient
 import kotlin.math.sqrt
 
 class MainActivity : AppCompatActivity() {
+
+    lateinit var handleThread: HandlerThread
+    lateinit var slowTestHandler: Handler
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        handleThread = HandlerThread("SlowTest")
+        handleThread.start()
+        slowTestHandler = Handler(handleThread.looper)
 
         if (!Report.running) {
 
             if (PermissionManager.check(this)) {
                 Report.start("watch", "/sdcard/app_watch", Config.reportUrl,this)
                 Report.startWatchMainLooper()
+                AppWatchClient.startMainLooper(5000, handleThread.looper)
                 cpuTestThread.start()
             } else {
                 PermissionManager.request(this, 1000)
@@ -58,12 +63,11 @@ class MainActivity : AppCompatActivity() {
             var buffer: ByteArray? = null
             var bytes = 1024 * 1024
 
-            val handler = Handler(Looper.getMainLooper())
-            handler.post(object: Runnable {
+            slowTestHandler.post(object: Runnable {
                 override fun run() {
                     sleep(1000)
                     Log.d("SLOW_TEST", "Slow message ...")
-                    handler.post(Runnable@this)
+                    slowTestHandler.post(Runnable@this)
                 }
             })
 

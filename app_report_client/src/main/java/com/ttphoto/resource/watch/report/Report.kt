@@ -1,6 +1,7 @@
 package com.ttphoto.resource.watch.report
 
 import android.content.Context
+import android.os.Looper
 import com.ttphoto.resource.watch.sdk.AppPerformanceInfo
 import com.ttphoto.resource.watch.sdk.services.IAppWatchCallback
 import com.ttphoto.resource.watch.sdk.client.AppWatchClient
@@ -74,7 +75,7 @@ class Report {
         }
 
         fun startWatchMainLooper(anrTimeout: Int = 5000) {
-            AppWatchClient.startWartchMainLooper(anrTimeout)
+            AppWatchClient.startMainLooper(anrTimeout, Looper.getMainLooper())
         }
 
         fun startBatchUploadTask() {
