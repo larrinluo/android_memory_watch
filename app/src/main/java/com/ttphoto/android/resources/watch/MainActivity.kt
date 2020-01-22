@@ -33,6 +33,12 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.Button_ANR).setOnClickListener {
             Process.sendSignal(Process.myPid(), Process.SIGNAL_QUIT)
         }
+
+        findViewById<View>(R.id.Button_Exception).setOnClickListener {
+            var a = 0
+            var b = 100
+            val c =  b / a
+        }
     }
 
     override fun onRequestPermissionsResult(
@@ -55,7 +61,7 @@ class MainActivity : AppCompatActivity() {
             val handler = Handler(Looper.getMainLooper())
             handler.post(object: Runnable {
                 override fun run() {
-                    sleep(10000)
+                    sleep(1000)
                     Log.d("SLOW_TEST", "Slow message ...")
                     handler.post(Runnable@this)
                 }

@@ -1,5 +1,6 @@
-package com.ttphoto.resource.watch.sdk;
+package com.ttphoto.resource.watch.sdk.services;
 
+import com.ttphoto.resource.watch.sdk.AppPerformanceInfo;
 import com.ttphoto.resource.watch.sdk.IAppWatchClient;
 
 public interface IAppWatchCallback {

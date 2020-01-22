@@ -11,11 +11,10 @@ import android.os.RemoteException;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
-import com.ttphoto.resource.watch.sdk.performance.CPUInfo;
+import com.ttphoto.resource.watch.sdk.client.performance.CPUInfo;
 import com.ttphoto.resource.watch.sdk.IAppWatchClient;
 import com.ttphoto.resource.watch.sdk.AppPerformanceInfo;
 import com.ttphoto.resource.watch.sdk.IAppWatchService;
-import com.ttphoto.resource.watch.sdk.IAppWatchCallback;
 import com.ttphoto.resource.watch.sdk.utils.Utils;
 
 /**

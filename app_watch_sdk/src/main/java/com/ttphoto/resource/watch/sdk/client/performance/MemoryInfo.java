@@ -1,4 +1,4 @@
-package com.ttphoto.resource.watch.sdk.performance;
+package com.ttphoto.resource.watch.sdk.client.performance;
 
 import android.app.ActivityManager;
 import android.content.Context;

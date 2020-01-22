@@ -38,10 +38,17 @@ class LiveReportLines(initSize : Int) {
 
 class AppWatch(val pid: Int, val folder: String) {
 
-    val mPerformanceFile: File
-    val mPerformanceWriter: FileWriter
+    private val mPerformanceFile: File = File(String.format("%s/%d/performance.log", folder, pid)).apply {
+        if (!parentFile.exists()) {
+            parentFile.mkdirs()
+        }
+    }
+
+    private val mPerformanceWriter: FileWriter
     val startTime = System.currentTimeMillis()
     var stoped = false
+
+    val TAG = "APP_WATCH"
 
     /**
      * 实时监控上报数据
@@ -67,29 +74,23 @@ class AppWatch(val pid: Int, val folder: String) {
         }
 
     init {
-        mPerformanceFile = File(String.format("%s/%d/performance.log", folder, pid)).apply {
-            if (!parentFile.exists()) {
-                parentFile.mkdirs()
-            }
-        }
-
         mPerformanceWriter = FileWriter(mPerformanceFile, false)
     }
 
-    val MASK = FileObserver.CLOSE_WRITE
-
-    var anrObserver = object : FileObserver(String.format("%s/%d", folder, pid), MASK) {
+    private var fileObserver = object : FileObserver(String.format("%s/%d", folder, pid), FileObserver.CLOSE_WRITE) {
 
         override fun onEvent(event: Int, path: String?) {
-            if (event and MASK != 0) {
+            if (event and FileObserver.CLOSE_WRITE != 0) {
                 path?.let {
                     if (it.compareTo("traces.txt") == 0) {
                         val tm = SystemClock.elapsedRealtime()
                         if (tm - lastTraceTime > 1000) {
                             lastTraceTime = tm
                             traceVersion++
-                            Log.d("ANR_WARN", String.format("foud anr(%d), trace file /%s/%s/traces.txt", traceVersion, folder, pid))
+                            Log.d(TAG, String.format("ANR_WARN: found anr(%d), trace file /%s/%s/traces.txt", traceVersion, folder, pid))
                         }
+                    } else if (it.compareTo("exception.txt") == 0) {
+                        Log.d(TAG, String.format("Java exception found, exception file /%s/%s/exception.txt", folder, pid))
                     }
                 }
             }
@@ -97,12 +98,11 @@ class AppWatch(val pid: Int, val folder: String) {
     }
 
     fun start() {
-        anrObserver.startWatching()
+        fileObserver.startWatching()
     }
 
     fun stop() {
-        anrObserver.stopWatching()
-        Log.d("ANR_WARN", "stop watch trace file: " + traceFile())
+        fileObserver.stopWatching()
         Utils.closeSilently(mPerformanceWriter)
         stoped = true
         collect()
@@ -143,13 +143,13 @@ class AppWatch(val pid: Int, val folder: String) {
 
     fun onAnr() {
         traceVersion++
-        Log.d("ANR_WARN", "anr warning[" + traceVersion + "], trace dumped to " + traceFile())
+        Log.d(TAG, "ANR_WARN: anr warning[" + traceVersion + "], trace dumped to " + traceFile())
     }
 
     fun onMessageSlow(message: Int, delay: Long, dispatch: Long) {
         val slowMessagFile = String.format("%s/%d/slowMessage.txt", folder, pid)
         val txt = String.format("%d\t%d\t%d\n", message, delay, dispatch)
-        Log.d("SLOW_MESG", "foud slow message-->" + txt)
+        Log.d(TAG, "SLOW_MESG: foud slow message-->" + txt)
         FileUtil.appendStringToFile(slowMessagFile, txt)
         slowMessageLines.addLine(txt)
     }
@@ -168,8 +168,4 @@ class AppWatch(val pid: Int, val folder: String) {
      */
     fun report() {
     }
-
-
-
-
 }

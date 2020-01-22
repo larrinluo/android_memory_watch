@@ -14,6 +14,7 @@ import android.util.Log;
 import com.ttphoto.resource.watch.sdk.IAppWatchClient;
 import com.ttphoto.resource.watch.sdk.IAppWatchService;
 import com.ttphoto.resource.watch.sdk.services.AppResourceWatchService;
+import com.ttphoto.resource.watch.sdk.utils.FileUtil;
 import com.ttphoto.resource.watch.sdk.utils.Utils;
 
 // Run in application process
@@ -36,6 +37,8 @@ public class AppWatchClient {
 
         String traceFile = String.format("/sdcard/app_watch/%d/traces.txt", Process.myPid());
         AnrWartch.init(sApplicationContext, traceFile, AnrWartch.OUTPUT_COPY);
+        JavaExceptionWatch.init();
+
     }
 
     public static void startWartchMainLooper(int anrWarningTime) {
@@ -81,14 +84,10 @@ public class AppWatchClient {
         });
     }
 
-    public static void onAnr() {
-        if (service != null) {
-            try {
-                service.onAnr();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
+    public static void onUnhandledException(String exceptionMessage) {
+        // service通过FileObserver监控exception, 现在的状态下， 已经不时候做过多事情
+        String exceptionFile = String.format("/sdcard/app_watch/%d/exception.txt", Process.myPid());
+        FileUtil.writeStringToFile(exceptionFile, exceptionMessage);
     }
 
     //  implementation here
@@ -105,7 +104,6 @@ public class AppWatchClient {
 
         @Override
         public void dumpTrace(String traceFile) throws RemoteException {
-//            AnrWartch.setTracePath(traceFile);
         }
     };
 

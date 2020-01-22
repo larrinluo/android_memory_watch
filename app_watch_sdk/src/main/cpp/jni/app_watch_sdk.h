@@ -24,6 +24,8 @@ public:
         return JNI::jvm;
     }
 
+    static jclass FindClass(JNIEnv *env, const char *classname);
+
 };
 
 #endif //ANDROID_MEMORY_WATCH_APP_WATCH_SDK_H

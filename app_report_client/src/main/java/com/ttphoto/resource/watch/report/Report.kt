@@ -2,8 +2,7 @@ package com.ttphoto.resource.watch.report
 
 import android.content.Context
 import com.ttphoto.resource.watch.sdk.AppPerformanceInfo
-import com.ttphoto.resource.watch.sdk.IAppWatchClient
-import com.ttphoto.resource.watch.sdk.IAppWatchCallback
+import com.ttphoto.resource.watch.sdk.services.IAppWatchCallback
 import com.ttphoto.resource.watch.sdk.client.AppWatchClient
 import com.ttphoto.resource.watch.sdk.services.AppResourceWatchService
 import com.ttphoto.resource.watch.sdk.utils.Utils
@@ -32,7 +31,8 @@ class Report {
 
             } else if (Utils.isWatchProcess(processName)) { // set callback in watch process
 
-                AppResourceWatchService.setWatchCallback(object : IAppWatchCallback {
+                AppResourceWatchService.setWatchCallback(object :
+                    IAppWatchCallback {
 
                     var mCurrentApp: AppWatch? = null
 

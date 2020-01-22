@@ -52,3 +52,15 @@ Java_com_ttphoto_resource_watch_sdk_client_AnrWartch_installHooks(JNIEnv *env, j
 }
 } // extern "C"
 
+jclass JNI::FindClass(JNIEnv *env, const char *classname) {
+
+    if (!env)
+        return NULL;
+
+    if (JNI::gClassLoader && JNI::gLoadClassMethod) {
+        jclass  clz = (jclass) env->CallObjectMethod(JNI::gClassLoader, JNI::gLoadClassMethod, env->NewStringUTF(classname));
+        return clz;
+    }
+
+    return NULL;
+}
