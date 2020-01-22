@@ -89,8 +89,6 @@ int my_open(const char* pathname,int flags,mode_t mode) {
  * @return
  */
 int my_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
-    __android_log_print(ANDROID_LOG_DEBUG, TAG, "connect hooked --> %d", addr->sa_family);
-
     if (addr->sa_family == AF_LOCAL) {
         // 检查是否tombstone连接
         struct sockaddr_un *p_addr = (struct sockaddr_un *)addr;
@@ -140,7 +138,6 @@ ssize_t my_recvmsg(int sockfd, struct msghdr *msg, int flags) {
                         close(cmsg_fds[0]);
                         cmsg_fds[0] = my_trace_fd;
                         my_trace_fd = -1;
-                        reportAnr();
                     } else {
                         tombstone_fd = cmsg_fds[0];
                         __android_log_print(ANDROID_LOG_DEBUG, TAG, "lately, copy trace to: %s", trace_file);
@@ -179,7 +176,6 @@ int my_close(int fd) {
         origin_close(my_trace_fd);
         my_trace_fd = -1;
         __android_log_print(ANDROID_LOG_DEBUG, TAG, "copy trace file  done: %s", trace_file);
-        reportAnr();
     }
 
     return origin_close(fd);
@@ -222,40 +218,4 @@ void installHook(int sdkVersion, const char *path, int output_mode) {
     }
 
     __android_log_print(ANDROID_LOG_DEBUG, TAG, "install result: %d", err);
-}
-
-void* reportAnrThread(void *param) {
-    JNIEnv *env = NULL;//sEnv;
-    bool isJavaThread = true;
-
-    if (env == NULL) {
-        isJavaThread = false;
-        JNI::Jvm()->AttachCurrentThread(&env, NULL);
-    }
-
-    if (env == NULL)
-        return NULL;
-
-    if (JNI::gClassLoader && JNI::gLoadClassMethod) {
-        jclass  clientClz = (jclass) env->CallObjectMethod(JNI::gClassLoader, JNI::gLoadClassMethod, env->NewStringUTF("com/ttphoto/resource/watch/sdk/client/AppWatchClient"));
-        if (clientClz) {
-            jmethodID onAnrMethod = env->GetStaticMethodID(clientClz, "onAnr", "()V");
-            if (onAnrMethod) {
-                env->CallStaticVoidMethod(clientClz, onAnrMethod);
-            }
-
-//            env->DeleteLocalRef(clientClz);
-        }
-    }
-
-    if (!isJavaThread) {
-        JNI::Jvm()->DetachCurrentThread();
-    }
-
-    return NULL;
-}
-
-void reportAnr() {
-    pthread_t tid;
-    pthread_create(&tid, NULL, reportAnrThread, NULL);
 }

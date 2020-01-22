@@ -35,7 +35,7 @@ public class AppWatchClient {
         sApplicationContext = context.getApplicationContext();
 
         String traceFile = String.format("/sdcard/app_watch/%d/traces.txt", Process.myPid());
-        AnrWartch.init(sApplicationContext, traceFile, AnrWartch.OUTPUT_REDIRECT);
+        AnrWartch.init(sApplicationContext, traceFile, AnrWartch.OUTPUT_COPY);
     }
 
     public static void startWartchMainLooper(int anrWarningTime) {

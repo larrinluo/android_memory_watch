@@ -1,7 +1,7 @@
 #include <jni.h>
 #include <string>
 #include "app_watch_sdk.h"
-#include "../support/trace_hook.h"
+#include "../anr/trace_hook.h"
 
 extern "C" {
 

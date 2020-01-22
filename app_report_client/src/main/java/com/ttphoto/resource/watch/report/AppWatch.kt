@@ -1,6 +1,7 @@
 package com.ttphoto.resource.watch.report
 
 import android.os.FileObserver
+import android.os.SystemClock
 import android.util.Log
 import com.ttphoto.resource.watch.sdk.AppPerformanceInfo
 import com.ttphoto.resource.watch.sdk.utils.FileUtil
@@ -50,6 +51,7 @@ class AppWatch(val pid: Int, val folder: String) {
     val performanceLines = LiveReportLines(10)
     val slowMessageLines = LiveReportLines(4)
     var traceVersion = 0
+    var lastTraceTime = 0L
     var reportedTraceVersion = 0
 
     var javaUncachedException: String? = null
@@ -74,10 +76,32 @@ class AppWatch(val pid: Int, val folder: String) {
         mPerformanceWriter = FileWriter(mPerformanceFile, false)
     }
 
+    val MASK = FileObserver.CLOSE_WRITE
+
+    var anrObserver = object : FileObserver(String.format("%s/%d", folder, pid), MASK) {
+
+        override fun onEvent(event: Int, path: String?) {
+            if (event and MASK != 0) {
+                path?.let {
+                    if (it.compareTo("traces.txt") == 0) {
+                        val tm = SystemClock.elapsedRealtime()
+                        if (tm - lastTraceTime > 1000) {
+                            lastTraceTime = tm
+                            traceVersion++
+                            Log.d("ANR_WARN", String.format("foud anr(%d), trace file /%s/%s/traces.txt", traceVersion, folder, pid))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fun start() {
+        anrObserver.startWatching()
     }
 
     fun stop() {
+        anrObserver.stopWatching()
         Log.d("ANR_WARN", "stop watch trace file: " + traceFile())
         Utils.closeSilently(mPerformanceWriter)
         stoped = true
