@@ -20,33 +20,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-// Created by larrin on 20-1-22.
+// Created by larrin luo on 2020-01-23.
 //
 
-#ifndef ANDROID_MEMORY_WATCH_APP_WATCH_SDK_H
-#define ANDROID_MEMORY_WATCH_APP_WATCH_SDK_H
+#ifndef ANDROID_MEMORY_WATCH_DEADLOCK_H
+#define ANDROID_MEMORY_WATCH_DEADLOCK_H
 
-#include <jni.h>
-
-class JNI {
-
-    static JavaVM *jvm;
-
-public:
-
-    static jobject gClassLoader;
-    static jmethodID gLoadClassMethod;
-
-    static void init(JavaVM *jvm) {
-        JNI::jvm = jvm;
-    }
-
-    static JavaVM * Jvm() {
-        return JNI::jvm;
-    }
-
-    static jclass FindClass(JNIEnv *env, const char *classname);
-
-};
-
-#endif //ANDROID_MEMORY_WATCH_APP_WATCH_SDK_H
+#endif //ANDROID_MEMORY_WATCH_DEADLOCK_H
