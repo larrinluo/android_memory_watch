@@ -21,7 +21,8 @@
 // SOFTWARE.
 //
 // Created by larrin on 20-1-22.
-//T
+//
+
 #include <jni.h>
 #include <string>
 #include "app_watch_sdk.h"
@@ -68,7 +69,8 @@ Java_com_ttphoto_resource_watch_sdk_client_AnrWartch_installHooks(JNIEnv *env, j
 
         const char *path = env->GetStringUTFChars(outputPath, 0);
         if (path != NULL) {
-            installHook(sdkVersion, path, outputMode);
+            ANR::installHooks(sdkVersion, path, outputMode);
+//            installHook(sdkVersion, path, outputMode);
         }
 
         env->ReleaseStringUTFChars(outputPath, path);

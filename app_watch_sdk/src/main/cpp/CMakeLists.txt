@@ -21,6 +21,7 @@ add_library( appWatch
 #             ${XHOOK_SRC}/xh_version.c
 
              jni/app_watch_sdk.cpp
+             hook/got_hook.cpp
              anr/trace_hook.cpp)
 
 find_library( log-lib log)

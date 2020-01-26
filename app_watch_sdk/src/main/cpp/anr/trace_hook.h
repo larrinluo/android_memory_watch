@@ -27,14 +27,36 @@
 #define APP_WARTCH_SDK__ANDROID_UTIL__H
 
 #include <climits>
+#include "../hook/got_hook.h"
 
-enum ANR_OUTPUT_MODE {
-    ANR_REDIRECT,
-    ANR_COPY
+class ANR {
+
+public:
+
+    enum OUTPUT_MODE {
+        REDIRECT,
+        COPY
+    };
+
+
+private:
+
+    static char trace_file[PATH_MAX];
+    static int outputMode;
+
+    static int tombstone_client_socket;
+    static int tombstone_fd;
+    static int my_trace_fd;
+
+    static int my_open(OpenMethodContext &context);
+    static int my_connect(ConnectMethodContext &context);
+    static int my_recvmsg(RecvMsgMethodContext &context);
+    static int my_write(WriteMethodContext& context);
+    static int my_close(CloseMethodContext &context);
+
+public:
+
+    static void installHooks(int sdkVersion, const char *path, int output_mode);
 };
-
-void installHook(int sdkVersion, const char *path, int output_mode);
-void reportAnr();
-
 
 #endif // APP_WARTCH_SDK__ANDROID_UTIL__H

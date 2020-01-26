@@ -38,24 +38,14 @@
 
 #define TOMBSTONE_CLIENT_SOCKET "/dev/socket/tombstoned_java_trace"
 #define ANR_TRACE_FILE "/data/anr/traces.txt"
-
-char trace_file[PATH_MAX];
-int outputMode = ANR_REDIRECT;
-
-// hook methcods
-int (*origin_open)(const char* pathname,int flags,mode_t mode);
-ssize_t (*origin_write)(int fd, const void *buf, size_t count);
-int (*origin_close)(int fd);
-int (*origin_connect)(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
-ssize_t (*origin_recvmsg)(int sockfd, struct msghdr *msg, int flags);
-
-int (*origin_pthread_mutex_lock)(pthread_mutex_t *mutex);
-
-int tombstone_client_socket = -1;
-int tombstone_fd = -1;
-int my_trace_fd = -1;
-
 #define TAG "TRACE_HOOK"
+
+char ANR::trace_file[PATH_MAX];
+int ANR::outputMode = ANR::REDIRECT;
+
+int ANR::tombstone_client_socket = -1;
+int ANR::tombstone_fd = -1;
+int ANR::my_trace_fd = -1;
 
 /**
  * hook open方法:
@@ -71,21 +61,20 @@ int my_trace_fd = -1;
  * @param mode
  * @return
  */
-int my_open(const char* pathname,int flags,mode_t mode) {
-
-    if (strcmp(ANR_TRACE_FILE, pathname) == 0) {
-        if (outputMode == ANR_REDIRECT) {
+int ANR::my_open(OpenMethodContext &context) {
+    if (strcmp(ANR_TRACE_FILE, context.pathname) == 0) {
+        if (outputMode == ANR::REDIRECT) {
             __android_log_print(ANDROID_LOG_DEBUG, TAG, "redirect trace to :%s", trace_file);
-            return origin_open(trace_file, flags, mode);
+            context.pathname = trace_file; // change target
         } else {
             __android_log_print(ANDROID_LOG_DEBUG, TAG, "lately, copy trace to: %s", trace_file);
-            tombstone_fd =  origin_open(pathname, flags, mode);
-            return tombstone_fd;
+            context.retVal =  context.origin_open(context.pathname, context.flags, context.mode);
+            tombstone_fd = context.retVal;
+            return 1;
         }
     }
 
-    __android_log_print(ANDROID_LOG_DEBUG, TAG, "open file : %s", pathname);
-    return origin_open(pathname, flags, mode);
+    return 0;
 }
 
 /**
@@ -115,16 +104,15 @@ int my_open(const char* pathname,int flags,mode_t mode) {
  * @param addrlen
  * @return
  */
-int my_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
-    if (addr->sa_family == AF_LOCAL) {
-        // 检查是否tombstone连接
-        struct sockaddr_un *p_addr = (struct sockaddr_un *)addr;
+int ANR::my_connect(ConnectMethodContext &context) {
+    if (context.addr->sa_family == AF_LOCAL) { // 如果是tombstone连接, 在recvmsg中获取tombstne的fd
+        struct sockaddr_un *p_addr = (struct sockaddr_un *)context.addr;
         if (strncmp(TOMBSTONE_CLIENT_SOCKET, p_addr->sun_path, strlen(TOMBSTONE_CLIENT_SOCKET)) == 0) {
-            tombstone_client_socket = sockfd;
+            tombstone_client_socket = context.sockfd;
         }
     }
 
-    return origin_connect(sockfd, addr, addrlen);
+    return 0;
 }
 
 /**
@@ -140,11 +128,13 @@ int my_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
  * @param flags
  * @return
  */
-ssize_t my_recvmsg(int sockfd, struct msghdr *msg, int flags) {
-    ssize_t s = origin_recvmsg(sockfd, msg, flags);
-    if (sockfd == tombstone_client_socket) {\
+int ANR::my_recvmsg(RecvMsgMethodContext &context) {
+
+    context.retVal = context.origin_recvmsg(context.sockfd, context.msg, context.flags);
+
+    if (context.sockfd == tombstone_client_socket) { // tombstone应答，提取tombstone fd用于获取Trace
         struct cmsghdr* cmsg;
-        for (cmsg = CMSG_FIRSTHDR(msg); cmsg != nullptr; cmsg = CMSG_NXTHDR(msg, cmsg)) {
+        for (cmsg = CMSG_FIRSTHDR(context.msg); cmsg != nullptr; cmsg = CMSG_NXTHDR(context.msg, cmsg)) {
             if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS) {
                 continue;
             }
@@ -159,10 +149,21 @@ ssize_t my_recvmsg(int sockfd, struct msghdr *msg, int flags) {
             size_t cmsg_fdcount = static_cast<size_t>(cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int);
             if (cmsg_fdcount == 1) {
 
-                my_trace_fd = open(trace_file, O_APPEND | O_CREAT | O_WRONLY, 0666);
+                if (GotHook::origin_open) {
+                    my_trace_fd = GotHook::origin_open(trace_file, O_APPEND | O_CREAT | O_WRONLY, 0666);
+                } else {
+                    my_trace_fd = open(trace_file, O_APPEND | O_CREAT | O_WRONLY, 0666);
+                }
+
                 if (my_trace_fd != -1) {
-                    if (outputMode == ANR_REDIRECT) {
-                        close(cmsg_fds[0]);
+                    if (outputMode == ANR::REDIRECT) {
+
+                        if (GotHook::origin_close) {
+                            GotHook::origin_close(cmsg_fds[0]);
+                        } else {
+                            close(cmsg_fds[0]);
+                        }
+
                         cmsg_fds[0] = my_trace_fd;
                         my_trace_fd = -1;
                     } else {
@@ -174,20 +175,25 @@ ssize_t my_recvmsg(int sockfd, struct msghdr *msg, int flags) {
         }
 
     }
-    return s;
+    return 1;
 }
 
-ssize_t my_write(int fd, const void *buf, size_t count) {
+int ANR::my_write(WriteMethodContext& context) {
 
-    int bytes = origin_write(fd, buf, count);
+    int bytes = context.origin_write(context.fd, context.buf, context.count);
+    context.retVal = bytes;
 
-    if (fd == tombstone_fd && my_trace_fd != -1) {
+    if (context.fd == tombstone_fd && my_trace_fd != -1) {
         int c = 0;
         while (c < bytes) {
-            int b = origin_write(my_trace_fd, buf, bytes - c);
+            int b = GotHook::origin_write(my_trace_fd, context.buf, bytes - c);
             if (b <= 0) {
                 __android_log_print(ANDROID_LOG_WARN, TAG, "copy trace file failed: %s", trace_file);
-                origin_close(my_trace_fd);
+                if (GotHook::origin_close)
+                    GotHook::origin_close(my_trace_fd);
+                else
+                    close(my_trace_fd);
+
                 my_trace_fd = -1;
                 break;
             }
@@ -195,56 +201,65 @@ ssize_t my_write(int fd, const void *buf, size_t count) {
         }
     }
 
-    return bytes;
+    return 1;
 }
 
-int my_close(int fd) {
-    if (fd == tombstone_fd && my_trace_fd != -1) {
-        origin_close(my_trace_fd);
+int ANR::my_close(CloseMethodContext &context) {
+    if (context.fd == tombstone_fd && my_trace_fd != -1) {
+        context.origin_close(my_trace_fd);
         my_trace_fd = -1;
         __android_log_print(ANDROID_LOG_DEBUG, TAG, "copy trace file  done: %s", trace_file);
     }
 
-    return origin_close(fd);
+    return 0;
 }
 
-void installHook(int sdkVersion, const char *path, int output_mode) {
+void ANR::installHooks(int sdkVersion, const char *path, int output_mode) {
 
     strncpy(trace_file, path, PATH_MAX - 1);
     outputMode = output_mode;
-    if (outputMode != ANR_REDIRECT && outputMode != ANR_COPY) {
+    if (outputMode != ANR::REDIRECT && outputMode != ANR::COPY) {
         __android_log_print(ANDROID_LOG_DEBUG, TAG, "invalide anr output mode %d, keep ANR_REDIRECT mode", output_mode);
-        outputMode = ANR_REDIRECT;
+        outputMode = ANR::REDIRECT;
     }
 
     if (sdkVersion >= 27) { // android 8.1以上版本
-        xhook_register(".*\\.so$", "connect", (void *) my_connect, (void **) &origin_connect);
-        xhook_register(".*\\.so$", "recvmsg", (void *) my_recvmsg, (void **) &origin_recvmsg);
+        GotHook::add_connect_hook(".*\\.so$", ANR::my_connect);
+        GotHook::add_recvmsg_hook(".*\\.so$", ANR::my_recvmsg);
     } else { // android 8.1以下
-        xhook_register(".*\\libart.so$", "open", (void *) my_open, (void **) &origin_open);
+        GotHook::add_open_hook(".*\\libart.so$", ANR::my_open);
     }
 
-    if (outputMode == ANR_COPY) {
-        xhook_register(".*\\libart.so$", "write", (void *) my_write, (void **) &origin_write);
-        xhook_register(".*\\libart.so$", "close", (void *) my_close, (void **) &origin_close);
+    if (outputMode == ANR::COPY) {
+        GotHook::add_write_hook(".*\\libart.so$", ANR::my_write);
+        GotHook::add_close_hook(".*\\libart.so$", ANR::my_close);
     }
 
-    int (*origin_pthread_mutex_lock)(pthread_mutex_t *mutex);
+    bool ret = GotHook::installHooks();
 
-    xhook_refresh(false);
+    if (!ret) {
+        if (outputMode == ANR::COPY) {
+            if (GotHook::origin_write == NULL || GotHook::origin_close == NULL) {
+                __android_log_print(ANDROID_LOG_DEBUG, TAG, "anr hook try to downgrade to REDIRECT mode");
+                outputMode = ANR::REDIRECT; // downgrade
+            }
+        }
 
-    int err = 0;
-    if (outputMode == ANR_COPY) {
-        err = (origin_write != NULL && origin_close != NULL) ? 0 : 1;
-    }
-
-    if (err == 0) {
-        if (sdkVersion >= 28) {
-            err = (origin_connect != NULL && origin_recvmsg != NULL) ? 0 : 1;
-        } else {
-            err = (origin_open != NULL) ? 0 : 1;
+        if (outputMode == ANR::REDIRECT) {
+            if (sdkVersion >= 27) {
+                if (GotHook::origin_connect != NULL || GotHook::origin_recvmsg != NULL) {
+                    __android_log_print(ANDROID_LOG_DEBUG, TAG, "anr hook downgrade to REDIRECT mode OK 1");
+                    ret = true;
+                }
+            } else {
+                if (GotHook::origin_open != NULL) {
+                    __android_log_print(ANDROID_LOG_DEBUG, TAG, "anr hook downgrade to REDIRECT mode OK 2");
+                    ret = true;
+                }
+            }
         }
     }
 
-    __android_log_print(ANDROID_LOG_DEBUG, TAG, "install result: %d", err);
+    __android_log_print(ANDROID_LOG_DEBUG, TAG, "install result: %d", ret);
 }
+
