@@ -52,7 +52,7 @@ class Report {
 
             if (Utils.isMainProcess()) { // Start watch service in remote process
 
-                AppWatchClient.start(context)
+                AppWatchClient.start(context, ".*\\libappWatch.so$")
 
             } else if (Utils.isWatchProcess(processName)) { // set callback in watch process
 

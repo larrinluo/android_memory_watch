@@ -25,68 +25,103 @@
 
 #include <jni.h>
 #include <string>
+#include <unistd.h>
 #include "app_watch_sdk.h"
 #include "../anr/trace_hook.h"
+#include "../deadlock/deadlock.h"
+#include <android/log.h>
+
+
+pthread_mutex_t lock1;
+pthread_mutex_t lock2;
+
+void *deadlock_thread1(void *arg)
+{
+    time_t t;
+    srand((unsigned) time(&t));
+    while (1) {
+        sleep(rand() % 2);
+        pthread_mutex_lock(&lock2);
+        sleep(2);
+        pthread_mutex_lock(&lock1);
+        __android_log_print(ANDROID_LOG_DEBUG, "TESTA", "thread 1 in lock section");
+
+//        pthread_mutex_unlock(&lock1);
+//        pthread_mutex_unlock(&lock2);
+    }
+}
+
+void *deadlock_thread2(void *arg)
+{
+    time_t t;
+    srand((unsigned) time(&t));
+
+    while (1) {
+        sleep(rand() % 2);
+        pthread_mutex_lock(&lock1);
+        sleep(2);
+        pthread_mutex_lock(&lock2);
+        __android_log_print(ANDROID_LOG_DEBUG, "TESTA", "thread 2 in lock section");
+        sleep(2);
+//        pthread_mutex_unlock(&lock2);
+//        pthread_mutex_unlock(&lock1);
+    }
+}
 
 extern "C" {
 
-bool installed = false;
+JNIEXPORT void JNICALL
+Java_com_ttphoto_resource_watch_sdk_client_WatchSDK_enableANRWatch(JNIEnv *env, jclass clazz,
+                                                                   jint sdk_version,
+                                                                   jstring output_path,
+                                                                   jint output_mode) {
 
-JavaVM * JNI::jvm = NULL;
-jobject JNI::gClassLoader = NULL;
-jmethodID JNI::gLoadClassMethod = NULL;
-
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved) {
-    JNIEnv *env = NULL;
-    jint result = -1;
-
-    if (jvm->GetEnv((void **) &env, JNI_VERSION_1_6) != JNI_OK) {
-        return -1;
+    const char *path = env->GetStringUTFChars(output_path, 0);
+    if (path != NULL) {
+        ANR::registerHooks(sdk_version, path, output_mode);
     }
 
-    JNI::init(jvm);
+    if (path)
+        env->ReleaseStringUTFChars(output_path, path);
 
-
-    jclass clientClass = env->FindClass("com/ttphoto/resource/watch/sdk/client/AppWatchClient");
-    jclass classClass = env->GetObjectClass(clientClass);
-    jmethodID getClassLoaderMethod = env->GetMethodID(classClass, "getClassLoader", "()Ljava/lang/ClassLoader;");
-    jobject localClassLoader = env->CallObjectMethod(clientClass, getClassLoaderMethod);
-    JNI::gClassLoader = env->NewGlobalRef(localClassLoader);
-
-    jclass classLoaderClass = env->FindClass("java/lang/ClassLoader");
-    JNI::gLoadClassMethod = env->GetMethodID(classLoaderClass, "findClass",
-                                             "(Ljava/lang/String;)Ljava/lang/Class;");
-
-    result = JNI_VERSION_1_6;
-    return result;
 }
 
 JNIEXPORT void JNICALL
-Java_com_ttphoto_resource_watch_sdk_client_AnrWartch_installHooks(JNIEnv *env, jobject thiz,
-        jint sdkVersion, jstring outputPath, jint outputMode) {
-    if (!installed) {
-        installed = true;
+Java_com_ttphoto_resource_watch_sdk_client_WatchSDK_enableDeadLockWatch(JNIEnv *env, jclass clazz,
+                                                                        jint sdk_version,
+                                                                        jstring target_so,
+                                                                        jstring output_path) {
+    const char *path = env->GetStringUTFChars(output_path, 0);
+    const char *targetSo = env->GetStringUTFChars(target_so, 0);
 
-        const char *path = env->GetStringUTFChars(outputPath, 0);
-        if (path != NULL) {
-            ANR::installHooks(sdkVersion, path, outputMode);
-//            installHook(sdkVersion, path, outputMode);
-        }
-
-        env->ReleaseStringUTFChars(outputPath, path);
+    if (path != NULL && targetSo != NULL) {
+        DeadLock::registerHooks(sdk_version, targetSo, path);
     }
+
+    if (path)
+        env->ReleaseStringUTFChars(output_path, path);
+
+    if (targetSo)
+        env->ReleaseStringUTFChars(target_so, targetSo);
 }
+
+JNIEXPORT void JNICALL
+Java_com_ttphoto_resource_watch_sdk_client_WatchSDK_startWatch(JNIEnv *env, jclass clazz) {
+    GotHook::installHooks();
+    ANR::checkHooks();
+    DeadLock::checkHooks();
+
+    // dead lock test
+    pthread_t tid1, tid2;
+
+    pthread_mutexattr_t attr;
+    pthread_mutexattr_init(&attr);
+    pthread_mutex_init(&lock1, &attr);
+    pthread_mutex_init(&lock2, &attr);
+
+    pthread_create(&tid1, NULL, deadlock_thread1, NULL);
+    pthread_create(&tid2, NULL, deadlock_thread2, NULL);
+}
+
 } // extern "C"
 
-jclass JNI::FindClass(JNIEnv *env, const char *classname) {
-
-    if (!env)
-        return NULL;
-
-    if (JNI::gClassLoader && JNI::gLoadClassMethod) {
-        jclass  clz = (jclass) env->CallObjectMethod(JNI::gClassLoader, JNI::gLoadClassMethod, env->NewStringUTF(classname));
-        return clz;
-    }
-
-    return NULL;
-}

@@ -20,45 +20,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-// Created by larrin luo on 2020-01-18.
+// Created by larrin luo on 2020-01-30.
 //
 
-#ifndef APP_WARTCH_SDK__ANDROID_UTIL__H
-#define APP_WARTCH_SDK__ANDROID_UTIL__H
-
-#include <climits>
-#include "../hook/got_hook.h"
-
-class ANR {
-
-public:
-
-    enum OUTPUT_MODE {
-        REDIRECT,
-        COPY
-    };
-
-
-private:
-
-    static char trace_file[PATH_MAX];
-    static int outputMode;
-    static int sdkVersion;
-
-    static int tombstone_client_socket;
-    static int tombstone_fd;
-    static int my_trace_fd;
-
-    static int my_open(OpenMethodContext &context);
-    static int my_connect(ConnectMethodContext &context);
-    static int my_recvmsg(RecvMsgMethodContext &context);
-    static int my_write(WriteMethodContext& context);
-    static int my_close(CloseMethodContext &context);
-
-public:
-
-    static void registerHooks(int sdkVersion, const char *path, int output_mode);
-    static void checkHooks();
-};
-
-#endif // APP_WARTCH_SDK__ANDROID_UTIL__H
+#include "utils.h"
+#include <string>

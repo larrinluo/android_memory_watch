@@ -42,6 +42,7 @@
 
 char ANR::trace_file[PATH_MAX];
 int ANR::outputMode = ANR::REDIRECT;
+int ANR::sdkVersion = 0;
 
 int ANR::tombstone_client_socket = -1;
 int ANR::tombstone_fd = -1;
@@ -68,7 +69,7 @@ int ANR::my_open(OpenMethodContext &context) {
             context.pathname = trace_file; // change target
         } else {
             __android_log_print(ANDROID_LOG_DEBUG, TAG, "lately, copy trace to: %s", trace_file);
-            context.retVal =  context.origin_open(context.pathname, context.flags, context.mode);
+            context.retVal =  GotHook::origin_open(context.pathname, context.flags, context.mode);
             tombstone_fd = context.retVal;
             return 1;
         }
@@ -130,7 +131,7 @@ int ANR::my_connect(ConnectMethodContext &context) {
  */
 int ANR::my_recvmsg(RecvMsgMethodContext &context) {
 
-    context.retVal = context.origin_recvmsg(context.sockfd, context.msg, context.flags);
+    context.retVal = GotHook::origin_recvmsg(context.sockfd, context.msg, context.flags);
 
     if (context.sockfd == tombstone_client_socket) { // tombstone应答，提取tombstone fd用于获取Trace
         struct cmsghdr* cmsg;
@@ -180,7 +181,7 @@ int ANR::my_recvmsg(RecvMsgMethodContext &context) {
 
 int ANR::my_write(WriteMethodContext& context) {
 
-    int bytes = context.origin_write(context.fd, context.buf, context.count);
+    int bytes = GotHook::origin_write(context.fd, context.buf, context.count);
     context.retVal = bytes;
 
     if (context.fd == tombstone_fd && my_trace_fd != -1) {
@@ -206,7 +207,7 @@ int ANR::my_write(WriteMethodContext& context) {
 
 int ANR::my_close(CloseMethodContext &context) {
     if (context.fd == tombstone_fd && my_trace_fd != -1) {
-        context.origin_close(my_trace_fd);
+        GotHook::origin_close(my_trace_fd);
         my_trace_fd = -1;
         __android_log_print(ANDROID_LOG_DEBUG, TAG, "copy trace file  done: %s", trace_file);
     }
@@ -214,10 +215,12 @@ int ANR::my_close(CloseMethodContext &context) {
     return 0;
 }
 
-void ANR::installHooks(int sdkVersion, const char *path, int output_mode) {
+void ANR::registerHooks(int sdkVersion, const char *path, int output_mode) {
 
     strncpy(trace_file, path, PATH_MAX - 1);
     outputMode = output_mode;
+    ANR::sdkVersion = sdkVersion;
+
     if (outputMode != ANR::REDIRECT && outputMode != ANR::COPY) {
         __android_log_print(ANDROID_LOG_DEBUG, TAG, "invalide anr output mode %d, keep ANR_REDIRECT mode", output_mode);
         outputMode = ANR::REDIRECT;
@@ -235,31 +238,26 @@ void ANR::installHooks(int sdkVersion, const char *path, int output_mode) {
         GotHook::add_close_hook(".*\\libart.so$", ANR::my_close);
     }
 
-    bool ret = GotHook::installHooks();
+}
 
-    if (!ret) {
-        if (outputMode == ANR::COPY) {
-            if (GotHook::origin_write == NULL || GotHook::origin_close == NULL) {
-                __android_log_print(ANDROID_LOG_DEBUG, TAG, "anr hook try to downgrade to REDIRECT mode");
-                outputMode = ANR::REDIRECT; // downgrade
-            }
-        }
+void ANR::checkHooks() {
 
-        if (outputMode == ANR::REDIRECT) {
-            if (sdkVersion >= 27) {
-                if (GotHook::origin_connect != NULL || GotHook::origin_recvmsg != NULL) {
-                    __android_log_print(ANDROID_LOG_DEBUG, TAG, "anr hook downgrade to REDIRECT mode OK 1");
-                    ret = true;
-                }
-            } else {
-                if (GotHook::origin_open != NULL) {
-                    __android_log_print(ANDROID_LOG_DEBUG, TAG, "anr hook downgrade to REDIRECT mode OK 2");
-                    ret = true;
-                }
-            }
+    if (outputMode == ANR::COPY) {
+        if (GotHook::origin_write == NULL || GotHook::origin_close == NULL) {
+            __android_log_print(ANDROID_LOG_DEBUG, TAG, "anr hook try to downgrade to REDIRECT mode");
+            outputMode = ANR::REDIRECT; // downgrade
         }
     }
 
-    __android_log_print(ANDROID_LOG_DEBUG, TAG, "install result: %d", ret);
+    if (outputMode == ANR::REDIRECT) {
+        if (sdkVersion >= 27) {
+            if (GotHook::origin_connect != NULL || GotHook::origin_recvmsg != NULL) {
+                __android_log_print(ANDROID_LOG_DEBUG, TAG, "anr hook downgrade to REDIRECT mode OK 1");
+            }
+        } else {
+            if (GotHook::origin_open != NULL) {
+                __android_log_print(ANDROID_LOG_DEBUG, TAG, "anr hook downgrade to REDIRECT mode OK 2");
+            }
+        }
+    }
 }
-

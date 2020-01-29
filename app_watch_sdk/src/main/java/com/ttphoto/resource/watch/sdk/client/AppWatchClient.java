@@ -52,7 +52,7 @@ public class AppWatchClient {
      *
      * @param context
      */
-    public static void start(Context context) {
+    public static void start(Context context, String deadlockSo) {
         Intent intent = new Intent();
         intent.setClass(context, AppResourceWatchService.class);
         context.bindService(intent, sConnection, Context.BIND_AUTO_CREATE);
@@ -60,9 +60,18 @@ public class AppWatchClient {
         sApplicationContext = context.getApplicationContext();
 
         String traceFile = String.format("/sdcard/app_watch/%d/traces.txt", Process.myPid());
-        AnrWartch.init(sApplicationContext, traceFile, AnrWartch.OUTPUT_COPY);
-        JavaExceptionWatch.init();
 
+        if (WatchSDK.init(context)) {
+            WatchSDK.enableANRWatch(traceFile, WatchSDK.ANR_OUTPUT_COPY);
+
+            if (deadlockSo != null) {
+                WatchSDK.enableDeadLockWatch(deadlockSo, "");
+            }
+
+            WatchSDK.start();
+        }
+
+        JavaExceptionWatch.init();
     }
 
     public static void startMainLooper(int anrWarningTime, Looper looper) {

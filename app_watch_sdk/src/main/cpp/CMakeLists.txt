@@ -12,22 +12,27 @@ link_directories(BEFORE "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../xHook/libxho
 add_library( appWatch
              SHARED
 
-#             ${XHOOK_SRC}/xh_core.c
-#             ${XHOOK_SRC}/xh_elf.c
-#             ${XHOOK_SRC}/xh_jni.c
-#             ${XHOOK_SRC}/xh_log.c
-#             ${XHOOK_SRC}/xhook.c
-#             ${XHOOK_SRC}/xh_util.c
-#             ${XHOOK_SRC}/xh_version.c
+             ${XHOOK_SRC}/xh_core.c
+             ${XHOOK_SRC}/xh_elf.c
+             ${XHOOK_SRC}/xh_jni.c
+             ${XHOOK_SRC}/xh_log.c
+             ${XHOOK_SRC}/xhook.c
+             ${XHOOK_SRC}/xh_util.c
+             ${XHOOK_SRC}/xh_version.c
 
              jni/app_watch_sdk.cpp
+             jni/jni_utils.cpp
              hook/got_hook.cpp
-             anr/trace_hook.cpp)
+             anr/trace_hook.cpp
+             deadlock/deadlock.cpp
+             utils/utils.cpp
+             utils/utils_android.cpp
+        )
 
 find_library( log-lib log)
 
 target_link_libraries( appWatch
 
-                       xhook
+#                       xhook
                        ${log-lib}
         )

@@ -29,6 +29,8 @@
 
 #define TAG "GOT_HOOK"
 
+
+std::string GotHook::sDeadLock_targetSo;
 std::string GotHook::targetSo_open;
 OPEN_METHOD GotHook::origin_open = NULL;
 std::vector<OpenHookMethod> GotHook::open_hook_list;
@@ -49,9 +51,35 @@ std::string GotHook::targetSo_recvmsg;
 RECVMSG_METHOD GotHook::origin_recvmsg = NULL;
 std::vector<RecvMsgMethod> GotHook::recvmsg_hook_list;
 
+std::vector<PthreadMutexLockMethod > GotHook::pthread_mutex_lock_hook_list;
+PTHREAD_MUTEX_LOCK GotHook::origin_pthread_mutex_lock = NULL;
+
+std::vector<PthreadMutexUnlockMethod > GotHook::pthread_mutex_unlock_hook_list;
+PTHREAD_MUTEX_UNLOCK GotHook::origin_pthread_mutex_unlock = NULL;
+
+std::vector<PthreadMutexInitMethod> GotHook::pthread_mutex_init_hook_list;
+PTHREAD_MUTEX_INIT GotHook::origin_pthread_mutex_init = NULL;
+
+std::vector<PthreadMutexDestroyMethod> GotHook::pthread_mutex_destroy_hook_list;
+PTHREAD_MUTEX_DESTROY GotHook::origin_pthread_mutex_destroy = NULL;
+
+std::vector<PthreadRWLockInitMethod > GotHook::pthread_rwlock_init_hook_list;
+PTHREAD_RWLOCK_INIT GotHook::origin_pthread_rwlock_init = NULL;
+
+std::vector<PthreadRWLockDestoryMethod > GotHook::pthread_rwlock_destroy_hook_list;
+PTHREAD_RWOCK_DESTROY GotHook::origin_pthread_rwlock_destroy = NULL;
+
+std::vector<PthreadRWLockRdlockMethod > GotHook::pthread_rwlock_rdlock_hook_list;
+PTHREAD_RWLOCK_RDLOCK GotHook::origin_pthread_rwlock_rdlock = NULL;
+
+std::vector<PthreadRWLockWrLockMethod > GotHook::pthread_rwlock_wrlock_hook_list;
+PTHREAD_RWLOCK_WRLOCK GotHook::origin_pthread_rwlock_wrlock = NULL;
+
+std::vector<PthreadRWLockUnlockMethod > GotHook::pthread_rwlock_unlock_hook_list;
+PTHREAD_RWLOCK_UNLOCK GotHook::origin_pthread_rwlock_unlock = NULL;
+
 int GotHook::open_hook_entry(const char* pathname, int flags, mode_t mode) {
     OpenMethodContext context;
-    context.origin_open = GotHook::origin_open;
     context.pathname = pathname;
     context.flags = flags;
     context.mode = mode;
@@ -67,7 +95,6 @@ int GotHook::open_hook_entry(const char* pathname, int flags, mode_t mode) {
 
 ssize_t GotHook::write_hook_entry(int fd, const void *buf, size_t count) {
     WriteMethodContext context;
-    context.origin_write = GotHook::origin_write;
     context.fd = fd;
     context.buf = buf;
     context.count = count;
@@ -83,7 +110,6 @@ ssize_t GotHook::write_hook_entry(int fd, const void *buf, size_t count) {
 
 int GotHook::close_hook_entry(int fd) {
     CloseMethodContext context;
-    context.origin_close = GotHook::origin_close;
     context.fd = fd;
 
     for (auto hook: close_hook_list) {
@@ -97,7 +123,6 @@ int GotHook::close_hook_entry(int fd) {
 
 int GotHook::connect_hook_entry(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     ConnectMethodContext context;
-    context.origin_connect = GotHook::origin_connect;
     context.sockfd = sockfd;
     context.addr = addr;
     context.addrlen = addrlen;
@@ -113,7 +138,6 @@ int GotHook::connect_hook_entry(int sockfd, const struct sockaddr *addr, socklen
 
 ssize_t GotHook::recvmsg_hook_entry(int sockfd, struct msghdr *msg, int flags) {
     RecvMsgMethodContext context;
-    context.origin_recvmsg = GotHook::origin_recvmsg;
     context.sockfd = sockfd;
     context.msg = msg;
     context.flags = flags;
@@ -181,6 +205,165 @@ void GotHook::add_recvmsg_hook(const char *targetSo, RecvMsgMethod hookMethod) {
     recvmsg_hook_list.push_back(hookMethod);
 }
 
+void GotHook::add_pthread_mutex_lock_hook(PthreadMutexLockMethod hookMethod) {
+    pthread_mutex_lock_hook_list.push_back(hookMethod);
+}
+
+void GotHook::add_pthread_mutex_unlock_hook(PthreadMutexUnlockMethod hookMethod) {
+    pthread_mutex_unlock_hook_list.push_back(hookMethod);
+}
+
+void GotHook::add_pthread_mutex_init_hook(PthreadMutexInitMethod hookMethod) {
+    pthread_mutex_init_hook_list.push_back(hookMethod);
+}
+
+void GotHook::add_pthread_mutex_destroy_hook(PthreadMutexDestroyMethod hookMethod) {
+    pthread_mutex_destroy_hook_list.push_back(hookMethod);
+}
+
+void GotHook::add_pthread_rwlock_init_hook(PthreadRWLockInitMethod hookMethod) {
+    pthread_rwlock_init_hook_list.push_back(hookMethod);
+}
+
+void GotHook::add_pthread_rwlock_destory_hook(PthreadRWLockDestoryMethod hookMethod) {
+    pthread_rwlock_destroy_hook_list.push_back(hookMethod);
+}
+
+void GotHook::add_pthread_rwlock_rdlock_hook(PthreadRWLockRdlockMethod hookMethod) {
+    pthread_rwlock_rdlock_hook_list.push_back(hookMethod);
+}
+
+void GotHook::add_pthread_rwlock_wdlock_hook(PthreadRWLockWrLockMethod hookMethod) {
+    pthread_rwlock_wrlock_hook_list.push_back(hookMethod);
+}
+
+void GotHook::add_pthread_rwlock_unlock_hook(PthreadRWLockUnlockMethod hookMethod) {
+    pthread_rwlock_unlock_hook_list.push_back(hookMethod);
+}
+
+int GotHook::pthread_mutex_lock_hook_entrty(pthread_mutex_t* __mutex) {
+    PthreadMutexLockContext context;
+    context.mutex = __mutex;
+
+    for (auto hook: pthread_mutex_lock_hook_list) {
+        if (hook(context)) {
+            return context.retVal;
+        }
+    }
+
+    return GotHook::origin_pthread_mutex_lock(context.mutex);
+}
+
+int GotHook::pthread_mutex_unlock_hook_entry(pthread_mutex_t* __mutex) {
+    PthreadMutexUnlockContext context;
+    context.mutex = __mutex;
+
+    for (auto hook: pthread_mutex_unlock_hook_list) {
+        if (hook(context)) {
+            return  context.retVal;
+        }
+    }
+
+    return GotHook::origin_pthread_mutex_unlock(context.mutex);
+}
+
+int GotHook::pthread_mutex_init_hook_entry(pthread_mutex_t *__mutex,
+                                           const pthread_mutexattr_t *__attr) {
+
+
+    PthreadMutexInitContext context;
+    context.mutex = __mutex;
+    context.attr = __attr;
+
+    for (auto hook: pthread_mutex_init_hook_list) {
+        if (hook(context)) {
+            return context.retVal;
+        }
+    }
+
+    return GotHook::origin_pthread_mutex_init(context.mutex, context.attr);
+}
+
+int GotHook::pthread_mutex_destroy_hook_entry(pthread_mutex_t *mutex) {
+
+    PthreadMutexDestroyContext context;
+    context.mutex = mutex;
+
+    for (auto hook: pthread_mutex_destroy_hook_list) {
+        if (hook(context)) {
+            return context.retVal;
+        }
+    }
+
+    return GotHook::origin_pthread_mutex_destroy(context.mutex);
+}
+
+int GotHook::pthread_rwlock_init_hook_entry(pthread_rwlock_t* __rwlock, const pthread_rwlockattr_t* __attr) {
+    PthreadRwLockInitContext context;
+    context.rwlock = __rwlock;
+    context.attr = __attr;
+
+    for (auto hook: GotHook::pthread_rwlock_init_hook_list) {
+        if (hook(context)) {
+            return context.retVal;
+        }
+    }
+
+    return GotHook::origin_pthread_rwlock_init(context.rwlock, context.attr);
+}
+
+int GotHook::pthread_rwlock_destroy_hook_entry(pthread_rwlock_t* __rwlock) {
+    PthreadRwLockDestroyContext context;
+    context.rwlock = __rwlock;
+
+    for (auto hook: GotHook::pthread_rwlock_destroy_hook_list) {
+        if (hook(context)) {
+            return context.retVal;
+        }
+    }
+
+    return GotHook::origin_pthread_rwlock_destroy(context.rwlock);
+}
+
+int GotHook::pthread_rwlock_rdlock_hook_entry(pthread_rwlock_t* __rwlock) {
+    PthreadRWLockRDLockContext context;
+    context.rwlock = __rwlock;
+
+    for (auto hook: GotHook::pthread_rwlock_rdlock_hook_list) {
+        if (hook(context)) {
+            return context.retVal;
+        }
+    }
+
+    return GotHook::origin_pthread_rwlock_rdlock(context.rwlock);
+}
+
+int GotHook::pthread_rwlock_wrlock_hook_entry(pthread_rwlock_t *__rwlock) {
+    PthreadRWLockWRLockContext context;
+    context.rwlock = __rwlock;
+
+    for (auto hook: GotHook::pthread_rwlock_wrlock_hook_list) {
+        if (hook(context)) {
+            return context.retVal;
+        }
+    }
+
+    return GotHook::origin_pthread_rwlock_wrlock(context.rwlock);
+}
+
+int GotHook::pthread_rwlock_unlock_hook_entry(pthread_rwlock_t* __rwlock) {
+    PthreadRWLockUnlockContext context;
+    context.rwlock = __rwlock;
+
+    for (auto hook: GotHook::pthread_rwlock_unlock_hook_list) {
+        if (hook(context)) {
+            return context.retVal;
+        }
+    }
+
+    return GotHook::origin_pthread_rwlock_unlock(context.rwlock);
+}
+
 bool GotHook::installHooks() {
 
     if (targetSo_write.length() > 0) {
@@ -203,6 +386,43 @@ bool GotHook::installHooks() {
         xhook_register(targetSo_recvmsg.c_str(), "recvmsg", (void *) GotHook::recvmsg_hook_entry, (void **) &GotHook::origin_recvmsg);
     }
 
+    if (pthread_mutex_lock_hook_list.size() > 0 ) {
+        xhook_register(sDeadLock_targetSo.c_str(), "pthread_mutex_lock", (void *) GotHook::pthread_mutex_lock_hook_entrty, (void **) &GotHook::origin_pthread_mutex_lock);
+    }
+
+    if (pthread_mutex_unlock_hook_list.size() > 0) {
+        xhook_register(sDeadLock_targetSo.c_str(), "pthread_mutex_unlock", (void *) GotHook::pthread_mutex_unlock_hook_entry, (void **) &GotHook::origin_pthread_mutex_unlock);
+    }
+
+    if (pthread_mutex_init_hook_list.size() > 0) {
+        xhook_register(sDeadLock_targetSo.c_str(), "pthread_mutex_init", (void *) GotHook::pthread_mutex_init_hook_entry, (void **) &GotHook::origin_pthread_mutex_init);
+    }
+
+    if (pthread_mutex_destroy_hook_list.size() > 0) {
+        xhook_register(sDeadLock_targetSo.c_str(), "pthread_mutex_destroy", (void *) GotHook::pthread_mutex_destroy_hook_entry, (void **) &GotHook::origin_pthread_mutex_destroy);
+    }
+
+    // rwlock
+    if (pthread_rwlock_init_hook_list.size() > 0 ) {
+        xhook_register(sDeadLock_targetSo.c_str(), "pthread_rwlock_init", (void *) GotHook::pthread_rwlock_init_hook_entry, (void **) &GotHook::origin_pthread_rwlock_init);
+    }
+
+    if (pthread_rwlock_destroy_hook_list.size() > 0 ) {
+        xhook_register(sDeadLock_targetSo.c_str(), "pthread_rwlock_destroy", (void *) GotHook::pthread_rwlock_destroy_hook_entry, (void **) &GotHook::origin_pthread_rwlock_destroy);
+    }
+
+    if (pthread_rwlock_rdlock_hook_list.size() > 0 ) {
+        xhook_register(sDeadLock_targetSo.c_str(), "pthread_rwlock_rdlock", (void *) GotHook::pthread_rwlock_rdlock_hook_entry, (void **) &GotHook::origin_pthread_rwlock_rdlock);
+    }
+
+    if (pthread_rwlock_wrlock_hook_list.size() > 0 ) {
+        xhook_register(sDeadLock_targetSo.c_str(), "pthread_rwlock_wrlock", (void *) GotHook::pthread_rwlock_wrlock_hook_entry, (void **) &GotHook::origin_pthread_rwlock_wrlock);
+    }
+
+    if (pthread_rwlock_unlock_hook_list.size() > 0 ) {
+        xhook_register(sDeadLock_targetSo.c_str(), "pthread_rwlock_unlock", (void *) GotHook::pthread_rwlock_unlock_hook_entry, (void **) &GotHook::origin_pthread_rwlock_unlock);
+    }
+
     xhook_refresh(false);
 
     bool ret = true;
@@ -222,15 +442,61 @@ bool GotHook::installHooks() {
         ret = false;
     }
 
-    if (targetSo_connect.length() > 0 && GotHook::origin_connect) {
+    if (targetSo_connect.length() > 0 && GotHook::origin_connect == NULL) {
         __android_log_print(ANDROID_LOG_WARN, TAG, "install connect hook failed!!");
         ret = false;
     }
 
-    if (targetSo_recvmsg.length() > 0 && GotHook::origin_recvmsg) {
+    if (targetSo_recvmsg.length() > 0 && GotHook::origin_recvmsg == NULL) {
         __android_log_print(ANDROID_LOG_WARN, TAG, "install recvmsg hook failed!!");
         ret = false;
     }
+
+    if (pthread_mutex_lock_hook_list.size() > 0 && GotHook::origin_pthread_mutex_lock == NULL) {
+        __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_mutex_lock hook failed!!");
+        ret = false;
+    }
+
+    if (pthread_mutex_unlock_hook_list.size() > 0 && GotHook::origin_pthread_mutex_unlock == NULL) {
+        __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_mutex_unlock hook failed!!");
+        ret = false;
+    }
+
+    if (pthread_mutex_init_hook_list.size() > 0 && GotHook::origin_pthread_mutex_init == NULL) {
+        __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_mutex_init hook failed!!");
+        ret = false;
+    }
+
+    if (pthread_mutex_destroy_hook_list.size() > 0 && GotHook::origin_pthread_mutex_destroy == NULL) {
+        __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_mutex_destroy hook failed!!");
+        ret = false;
+    }
+
+    if (pthread_rwlock_init_hook_list.size() > 0 && GotHook::origin_pthread_rwlock_init != NULL) {
+        __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_rwlock_init hook failed!!");
+        ret = false;
+    }
+
+    if (pthread_rwlock_destroy_hook_list.size() > 0 && GotHook::origin_pthread_rwlock_destroy != NULL) {
+        __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_rwlock_destroy hook failed!!");
+        ret = false;
+    }
+
+    if (pthread_rwlock_rdlock_hook_list.size() > 0 && GotHook::origin_pthread_rwlock_rdlock != NULL) {
+        __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_rwlock_rwlock hook failed!!");
+        ret = false;
+    }
+
+    if (pthread_rwlock_wrlock_hook_list.size() > 0 && GotHook::origin_pthread_rwlock_wrlock != NULL) {
+        __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_rwlock_wdlock hook failed!!");
+        ret = false;
+    }
+
+    if (pthread_rwlock_unlock_hook_list.size() > 0 && GotHook::origin_pthread_rwlock_unlock != NULL) {
+        __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_rwlock_unlock hook failed!!");
+        ret = false;
+    }
+
 
     if (!ret) {
         //xhook_clear();
