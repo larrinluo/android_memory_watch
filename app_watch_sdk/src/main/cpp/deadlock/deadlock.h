@@ -28,15 +28,49 @@
 
 #include "../hook/got_hook.h"
 #include <map>
+#include <vector>
+
+
+#define READ_LOCK_CACHE_SIZE 32
 
 struct MUTEX_TYPE {
 
     enum {
         UNKNOWN,
         MUTEX,
-        READ_LOCK,
-        WRITE_LOCK,
+        RW_LOCK,
     };
+};
+
+struct RdLockInfo;
+class DeadLock;
+
+struct BlockedMutex {
+    void * mutex;           // mutex
+    int type;               // mutex类型
+    int owner_thread;       // 锁定持有者线程
+    int blocked_thread;     // 等待的线程
+
+    std::string reportMsg;  // 上报消息
+
+    bool dumped;            // 发生死锁时，blockedThread是否dump了死锁信息，每个死锁线程dump一次
+
+    BlockedMutex():mutex(NULL),
+                   type(MUTEX_TYPE::UNKNOWN),
+                   owner_thread(0),
+                   blocked_thread(0),
+                   dumped(false)
+    {
+    }
+
+    BlockedMutex(const BlockedMutex &other):
+            mutex(other.mutex),
+            type(other.type),
+            owner_thread(other.owner_thread),
+            blocked_thread(other.blocked_thread),
+            dumped(other.dumped)
+    {
+    }
 };
 
 struct LockInfo {
@@ -60,34 +94,59 @@ struct LockInfo {
     }
 };
 
-struct BlockedMutex {
-    void * mutex;           // mutex
-    int type;               // mutex类型
-    int owner_thread;       // 锁定持有者线程
-    int blocked_thread;     // 等待的线程
+class RWLockInfo: public LockInfo {
 
-    std::string reportMsg;  // 上报消息
+    static pthread_mutex_t sCacheLock;
+    static std::vector<RdLockInfo *> sCache;
 
-    bool dumped;            // 发生死锁时，blockedThread是否dump了死锁信息，每个死锁线程dump一次
+    static RdLockInfo *obtainReadLock();
+    static void releaseReadLock(RdLockInfo *lock);
 
-    BlockedMutex():mutex(NULL),
-                    type(MUTEX_TYPE::UNKNOWN),
-                    owner_thread(0),
-                    blocked_thread(0),
-                    dumped(false)
+    friend class DeadLock;
+
+    std::atomic_flag m_readlocks_flag;
+
+    struct FlagLocker
     {
+        std::atomic_flag& m_flag;
+        FlagLocker(std::atomic_flag& flag) : m_flag(flag)
+        {
+            while (m_flag.test_and_set()) {
+                sched_yield();
+            }
+        }
+
+        ~FlagLocker()
+        {
+            m_flag.clear();
+        }
+    };
+
+public:
+
+    std::vector<RdLockInfo *> readLocks;
+
+    RdLockInfo * getReadLock(int tid);
+
+    RWLockInfo(): LockInfo(), m_readlocks_flag(ATOMIC_FLAG_INIT) {
+        type = MUTEX_TYPE::RW_LOCK;
     }
 
-    BlockedMutex(const BlockedMutex &other):
-                    mutex(other.mutex),
-                    type(other.type),
-                    owner_thread(other.owner_thread),
-                    blocked_thread(other.blocked_thread)
-    {
+    ~RWLockInfo();
+
+    void collect_block_items(int tid, std::vector<BlockedMutex> &items);
+};
+
+struct RdLockInfo: public LockInfo {
+    int for_thread;
+    RWLockInfo *parent;
+    RdLockInfo(): LockInfo()  {
+        type = MUTEX_TYPE::RW_LOCK;
     }
 };
 
-typedef std::map<void *, LockInfo> LOCK_MAP;
+
+typedef std::map<void *, LockInfo *> LOCK_MAP;
 
 class DeadLock {
 
@@ -110,13 +169,12 @@ class DeadLock {
     static int my_pthread_rwlock_wrlock(PthreadRWLockWRLockContext &context);
     static int my_pthread_rwlock_unlock(PthreadRWLockUnlockContext &context);
 
-
     static inline LockInfo * getLock(void * _lock) {
         LockInfo *pLock;
         GotHook::origin_pthread_mutex_lock(&sLock);
         LOCK_MAP::iterator it = sLockMap.find(_lock);
         if (it != sLockMap.end()) {
-            pLock =  &(it->second);
+            pLock =  it->second;
         } else {
             pLock = NULL;
         }
@@ -124,17 +182,32 @@ class DeadLock {
         return pLock;
     }
 
-    static int try_lock(LockInfo &lock);
+    static int try_lock(LockInfo &lock, bool readLock = false);
     static int unlock(LockInfo &lock);
 
     // inner
-    static int timed_lock(LockInfo& lock, int timeout);
+    static int timed_lock(LockInfo& lock, int timeout, bool readLock);
 
+    static void add_blocked_item(int blocked_thread, void *lock, int type, int owner_thread);
     static void remove_blocked_item(int blocked_thread);
 
-    static void collect_blocked_items(int blocked_thread, LockInfo &lock);
-    static void find_dead_locks(int tid, std::vector<std::vector<BlockedMutex>> &deadlock_links, bool force=false);
+    static void collect_blocked_items(int blocked_thread, LockInfo *lock, bool readLock);
+
+    /**
+     *
+     * blockedByDeadLockLoop == true, 表示线程被block在一个死循环loop上，导致该线程不可能在恢复了。
+     *
+     * @param tid
+     * @param deadlock_links
+     * @param force
+     * @param blockedByDeadLockThread
+     */
+    static void find_dead_locks(int tid, std::vector<std::vector<BlockedMutex>> &deadlock_links,
+            bool force, bool &blockedByDeadLockLoop);
+
     static BlockedMutex* find_next_jump(BlockedMutex *from_mutex);
+
+    friend class RWLockInfo;
 
 public:
 

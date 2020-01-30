@@ -34,10 +34,11 @@
 #define log_e(tag, format, ...) __android_log_print(ANDROID_LOG_ERROR, tag, format, ##__VA_ARGS__)
 
 std::vector<BlockedMutex> DeadLock::sBlockedMutexes;
-std::map<void *, LockInfo> DeadLock::sLockMap;
+std::map<void *, LockInfo *> DeadLock::sLockMap;
 int DeadLock::sdkVersion = 0;
 pthread_mutex_t DeadLock::sLock;
 pthread_mutex_t DeadLock::sBlockedMutexLock;
+
 
 #define _lock_(lock)       GotHook::origin_pthread_mutex_lock((lock))
 #define _unlock_(lock)     GotHook::origin_pthread_mutex_unlock((lock))
@@ -49,13 +50,13 @@ int DeadLock::my_pthread_mutex_init(PthreadMutexInitContext &context) {
 
     int count;
     _lock_map_();
-    LockInfo lock;
-    lock.type = MUTEX_TYPE::MUTEX;
-    lock.lock = context.mutex;
+    LockInfo *lock = new LockInfo();
+    lock->type = MUTEX_TYPE::MUTEX;
+    lock->lock = context.mutex;
 
     int type;
     pthread_mutexattr_gettype(context.attr, &type);
-    lock.recursive = type == PTHREAD_MUTEX_RECURSIVE;
+    lock->recursive = type == PTHREAD_MUTEX_RECURSIVE;
     sLockMap[context.mutex] = lock;
     count = sLockMap.size();
     _unlock_map_();
@@ -67,7 +68,11 @@ int DeadLock::my_pthread_mutex_destroy(PthreadMutexDestroyContext &context) {
 
     int count;
     _lock_map_();
-    sLockMap.erase(context.mutex);
+    LOCK_MAP::iterator it = sLockMap.find(context.mutex);
+    if (it != sLockMap.end()) {
+        delete it->second;
+        sLockMap.erase(context.mutex);
+    }
     count = sLockMap.size();
     _unlock_map_();
 
@@ -80,15 +85,13 @@ int DeadLock::my_pthread_mutex_lock(PthreadMutexLockContext &context) {
     if (pLock) {
         context.retVal = try_lock(*pLock);
         return 1;
-    } else {
-        return 0;
     }
 
+    return 0;
 }
 
 int DeadLock::my_pthread_mutex_unlock(PthreadMutexUnlockContext &context) {
     LockInfo *pLock = getLock(context.mutex);
-
     if (pLock) {
         unlock(*pLock);
     }
@@ -97,23 +100,82 @@ int DeadLock::my_pthread_mutex_unlock(PthreadMutexUnlockContext &context) {
 }
 
 int DeadLock::my_pthread_rwlock_init(PthreadRwLockInitContext &context) {
+
+    int count;
+    _lock_map_();
+    RWLockInfo *lock = new RWLockInfo();
+    lock->type = MUTEX_TYPE::RW_LOCK;
+    lock->lock = context.rwlock;
+    sLockMap[context.rwlock] = lock;
+    count = sLockMap.size();
+    _unlock_map_();
+
     return 0;
 }
 
 int DeadLock::my_pthread_rwlock_destroy(PthreadRwLockDestroyContext &context) {
+
+    int count;
+    _lock_map_();
+    LOCK_MAP::iterator it = sLockMap.find(context.rwlock);
+    if (it != sLockMap.end()) {
+        delete it->second;
+        sLockMap.erase(context.rwlock);
+    }
+    count = sLockMap.size();
+    _unlock_map_();
+
+    return 0;
+}
+
+int DeadLock::my_pthread_rwlock_wrlock(PthreadRWLockWRLockContext &context) {
+    LockInfo *pLock = getLock(context.rwlock);
+
+    if (pLock) {
+        context.retVal = try_lock(*pLock);
+        return 1;
+    }
+
     return 0;
 }
 
 int DeadLock::my_pthread_rwlock_rdlock(PthreadRWLockRDLockContext &context) {
+    RWLockInfo *pLock = (RWLockInfo *) getLock(context.rwlock);
+
+    if (pLock) {
+        int tid = get_tid();
+        RdLockInfo *rdLock = pLock->getReadLock(tid);
+        if (rdLock) {
+            context.retVal = try_lock(*pLock, true);
+        }
+
+        return 1;
+    }
+
     return 0;
 }
 
-
-int DeadLock::my_pthread_rwlock_wrlock(PthreadRWLockWRLockContext &context) {
-    return 0;
-}
-
+/**
+ * 一个线程不可能同时进入写锁和读锁, 因此首先常识unlock写锁，然后常识读锁
+ * @param context
+ * @return
+ */
 int DeadLock::my_pthread_rwlock_unlock(PthreadRWLockUnlockContext &context) {
+    RWLockInfo *pLock = (RWLockInfo *) getLock(context.rwlock);
+
+    if (pLock) {
+
+        int tid = get_tid();
+        if (pLock->owner == tid) {
+            unlock(*pLock);
+        } else {
+            RdLockInfo *rdLock = pLock->getReadLock(tid);
+            if (rdLock != NULL) {
+                unlock(*rdLock);
+            }
+        }
+    }
+
     return 0;
 }
 
@@ -163,11 +225,12 @@ void DeadLock::checkHooks() {
     pthread_mutexattr_init(&attr);
     GotHook::origin_pthread_mutex_init(&sLock, &attr);
     GotHook::origin_pthread_mutex_init(&sBlockedMutexLock, &attr);
+    GotHook::origin_pthread_mutex_init(&RWLockInfo::sCacheLock, &attr);
     pthread_mutexattr_destroy(&attr);
 }
 
 // internal methods
-int DeadLock::try_lock(LockInfo &lock) {
+int DeadLock::try_lock(LockInfo &lock, bool readLock) {
 
     long tm = get_relative_millisecond();
     int gate = 1000;
@@ -184,7 +247,7 @@ int DeadLock::try_lock(LockInfo &lock) {
     int err = 0;
     bool needRemoveFromDeadLock = false;
 
-    while ((err = timed_lock(lock, gate)) != 0) {
+    while ((err = timed_lock(lock, gate, readLock)) != 0) {
 
         long enter_time = lock.enter_time;
         long owner = lock.owner;
@@ -235,12 +298,11 @@ int DeadLock::try_lock(LockInfo &lock) {
                     log += "ARN warning: Main Thread dead locked!!!!\n";
                 }
 
-                snprintf(
-                        buf,
-                        256,
-                        "Deadlock callstack, thread: %d (%s) :\n",
-                        tid,
-                        tname);
+                snprintf(buf,
+                         256,
+                         "Deadlock callstack, thread: %d (%s) :\n",
+                         tid,
+                         tname);
 
                 log += buf;
 
@@ -251,60 +313,80 @@ int DeadLock::try_lock(LockInfo &lock) {
             }
         }
 
-        if (!needRemoveFromDeadLock) { // 加入一次就够了
-            collect_blocked_items(tid, lock);
+        if (!needRemoveFromDeadLock) {
+            collect_blocked_items(tid, &lock, readLock);
         }
 
         std::vector<std::vector<BlockedMutex>> deadlock_links;
-        find_dead_locks(tid, deadlock_links);
-
-        std::string callstack;
-
-        if (!deadlock_links.empty()) {
+        bool blockedByDeadLockLoop = false;
+        find_dead_locks(tid, deadlock_links, false, blockedByDeadLockLoop);
+        if (!deadlock_links.empty() || blockedByDeadLockLoop) {
+            std::string callstack;
             get_full_callstack(callstack, 15);
             isDeadLocked = true;
             gate = -1; // 已经死锁， 不必在重复检测了
-        }
 
-        for (auto& link: deadlock_links) {
-            // 为减少调用栈深度，backtrace获取更多有用调用栈信息，
-            // 下面的代码不提取到单独方法中
-            char tname[64];
-            char buf[256];
-            get_thread_name(tname, tid);
+            if (blockedByDeadLockLoop) {
 
-            // create log string for report
-            std::string log;
+                char tname[64];
+                char buf[256];
+                get_thread_name(tname, tid);
 
-            log = ("[Warning] Dead Lock found --------------------->\n");
-            if (isMainThread) {
-                log += "ARN warning: Main Thread dead locked!!!!\n";
-            }
+                std::string log;
+                log = ("[Warning] Thread blocked by Dead Lock loop --------------------->\n");
 
-            for (auto & lock: link) {
                 snprintf(
                         buf,
                         256,
-                        "[thread %d] blocked by [thread %d] on lock(%p) >>>> \n",
-                        lock.blocked_thread,
-                        lock.owner_thread,
-                        lock.mutex);
+                        "[thread %d] blocked by [thread %d] on lock(%p), which in deadlock loop >>>> \n",
+                        tid,
+                        owner,
+                        lock.lock);
 
                 log += buf;
+                log += "[End] Blocked by loop";
+                log_e("MUTEX:Deadlock", "%s", log.c_str());
             }
 
-            snprintf(buf,
-                     256,
-                     "Deadlock callstack, thread: %ld (%s) :\n",
-                     tid,
-                     tname);
+            for (auto& link: deadlock_links) {
+                // 为减少调用栈深度，backtrace获取更多有用调用栈信息，
+                // 下面的代码不提取到单独方法中
+                char tname[64];
+                char buf[256];
+                get_thread_name(tname, tid);
 
-            log += buf;
+                // create log string for report
+                std::string log;
+                log = ("[Warning] Dead Lock found --------------------->\n");
 
-            log += callstack;
-            log += "[End] Dead Lock";
+                if (isMainThread) {
+                    log += "ARN warning: Main Thread dead locked!!!!\n";
+                }
 
-            log_e("MUTEX:Deadlock", "%s", log.c_str());
+                for (auto & lock: link) {
+                    snprintf(
+                            buf,
+                            256,
+                            "[thread %d] blocked by [thread %d] on lock(%p) >>>> \n",
+                            lock.blocked_thread,
+                            lock.owner_thread,
+                            lock.mutex);
+
+                    log += buf;
+                }
+
+                snprintf(buf,
+                         256,
+                         "Deadlock callstack, thread: %ld (%s) :\n",
+                         tid,
+                         tname);
+
+                log += buf;
+                log += callstack;
+                log += "[End] Dead Lock";
+
+                log_e("MUTEX:Deadlock", "%s", log.c_str());
+            }
         }
 
         needRemoveFromDeadLock = true;
@@ -332,51 +414,117 @@ int DeadLock::unlock(LockInfo &lock) {
             lock.enter_time = 0;
         }
     } else {
-        log_w("MUTEX:Unlock",
-                 "[tid %d] unlock by none owner thread: %d", lock.owner);
+        log_w("MUTEX:Unlock", "[tid %d] unlock by none owner thread: %d", lock.owner);
     }
 
     return 0;
 }
 
-int DeadLock::timed_lock(LockInfo& lock, int timeout) {
+int DeadLock::timed_lock(LockInfo& lock, int timeout, bool readLock) {
 
     int ret = 0;
     if (lock.type == MUTEX_TYPE::MUTEX) {
 
         if (timeout < 0) {
-            return GotHook::origin_pthread_mutex_lock((pthread_mutex_t *)lock.lock);
+            ret = GotHook::origin_pthread_mutex_lock((pthread_mutex_t *)lock.lock);
+        } else {
+            #if !(__ANDROID__) || __ANDROID_API__ >= 21
+                struct timespec tout;
+                // Must be CLOCK_REALTIME
+                clock_gettime(CLOCK_REALTIME, &tout);
+                tout.tv_nsec += timeout * 1000000;
+                if (tout.tv_nsec > 1000000000L) {
+                    tout.tv_sec += tout.tv_nsec / 1000000000L;
+                    tout.tv_nsec %= 1000000000L;
+                }
+                ret = pthread_mutex_timedlock((pthread_mutex_t *)lock.lock, &tout);
+            #else
+                ret = pthread_mutex_lock_timeout_np((pthread_mutex_t *)lock.lock, timeout);
+            #endif
+        }
+    } else if (lock.type == MUTEX_TYPE::RW_LOCK) {
+
+        if (readLock) {
+
+            if (timeout < 0) {
+                ret = GotHook::origin_pthread_rwlock_rdlock((pthread_rwlock_t *)lock.lock);
+
+            } else {
+
+                struct timespec tout;
+                // Must be CLOCK_REALTIME
+                clock_gettime(CLOCK_REALTIME, &tout);
+                tout.tv_nsec += timeout * 1000000;
+                if (tout.tv_nsec > 1000000000L) {
+                    tout.tv_sec += tout.tv_nsec / 1000000000L;
+                    tout.tv_nsec %= 1000000000L;
+                }
+
+                ret = pthread_rwlock_timedrdlock((pthread_rwlock_t *)lock.lock, &tout);
+            }
+
+
+        } else {
+
+            if (timeout < 0) {
+                ret = GotHook::origin_pthread_rwlock_wrlock((pthread_rwlock_t *)lock.lock);
+            } else {
+                struct timespec tout;
+                // Must be CLOCK_REALTIME
+                clock_gettime(CLOCK_REALTIME, &tout);
+                tout.tv_nsec += timeout * 1000000;
+                if (tout.tv_nsec > 1000000000L) {
+                    tout.tv_sec += tout.tv_nsec / 1000000000L;
+                    tout.tv_nsec %= 1000000000L;
+                }
+
+                ret = pthread_rwlock_timedwrlock((pthread_rwlock_t *)lock.lock, &tout);
+            }
         }
 
-        #if !(__ANDROID__) || __ANDROID_API__ >= 21
-            struct timespec tout;
-            // Must be CLOCK_REALTIME
-            clock_gettime(CLOCK_REALTIME, &tout);
-            tout.tv_nsec += timeout * 1000000;
-            if (tout.tv_nsec > 1000000000L) {
-                tout.tv_sec += tout.tv_nsec / 1000000000L;
-                tout.tv_nsec %= 1000000000L;
-            }
-            ret = pthread_mutex_timedlock((pthread_mutex_t *)lock.lock, &tout);
-        #else
-            ret = pthread_mutex_lock_timeout_np((pthread_mutex_t *)lock.lock, timeout);
-        #endif
     }
 
     return ret;
 }
 
-void DeadLock::collect_blocked_items(int tid, LockInfo &lock) {
+void DeadLock::collect_blocked_items(int tid, LockInfo *lock, bool readLock) {
     _lock_(&sBlockedMutexLock);
 
-    BlockedMutex blockItem;
-    blockItem.mutex = lock.lock;
-    blockItem.type = lock.type;
-    blockItem.owner_thread = lock.owner;
-    blockItem.blocked_thread = tid;
-    sBlockedMutexes.push_back(blockItem);
+    if (lock->type == MUTEX_TYPE::MUTEX) {
+        add_blocked_item(tid, lock->lock, lock->type, lock->owner);
+    } else if (lock->type == MUTEX_TYPE::RW_LOCK) {
+
+        if (readLock) {
+            RdLockInfo * rdLockInfo = (RdLockInfo *)lock;
+            add_blocked_item(tid, rdLockInfo->lock, rdLockInfo->type, rdLockInfo->parent->owner);
+        } else {
+            RWLockInfo *wdLockInfo = (RWLockInfo *)lock;
+            wdLockInfo->collect_block_items(tid, sBlockedMutexes);
+        }
+    }
 
     _unlock_(&sBlockedMutexLock);
+}
+
+void DeadLock::add_blocked_item(int blocked_thread, void *lock, int type, int owner_thread) {
+
+    if (owner_thread == 0) {
+        return;
+    }
+
+    for (auto item: sBlockedMutexes) {
+        if (item.blocked_thread == blocked_thread &&
+            item.mutex == lock && item.owner_thread == owner_thread) {
+            return;
+        }
+    }
+
+    BlockedMutex blockItem;
+    blockItem.mutex = lock;
+    blockItem.type = type;
+    blockItem.owner_thread = owner_thread;
+    blockItem.blocked_thread = blocked_thread;
+    sBlockedMutexes.push_back(blockItem);
 }
 
 void DeadLock::remove_blocked_item(int blocked_thread) {
@@ -392,7 +540,12 @@ void DeadLock::remove_blocked_item(int blocked_thread) {
     _unlock_(&sBlockedMutexLock);
 }
 
-void DeadLock::find_dead_locks(int blocked_thread, std::vector<std::vector<BlockedMutex>> &deadlock_links, bool force) {
+void DeadLock::find_dead_locks(int blocked_thread,
+                               std::vector<std::vector<BlockedMutex>> &deadlock_links,
+                               bool force,
+                               bool &blockedByDeadLockLoop) {
+
+    blockedByDeadLockLoop = false;
 
     _lock_(&sBlockedMutexLock);
 
@@ -425,13 +578,35 @@ void DeadLock::find_dead_locks(int blocked_thread, std::vector<std::vector<Block
         items.push_back(pCurrentItem);
 
         BlockedMutex * pNext = NULL;
+
         while ((pNext = find_next_jump(pCurrentItem)) != NULL) {
+
+            //  被阻塞在其他死循环上， 必须退出循环，
+            // [x] --> [x] --> [x]
+            //          ^       |
+            //          |       |
+            //           -- -- -
+            bool blockedByLoop = false;
+            for (auto mutex: items) {
+                if (mutex == pNext) {
+                    if (pNext != item) {
+                        blockedByLoop = true;
+                    }
+
+                    break;
+                }
+            }
+
+            if (blockedByLoop) {
+                blockedByDeadLockLoop = true;
+                break;
+            }
+
             items.push_back(pNext);
 
             if (pNext->owner_thread == blocked_thread) { // 发现死锁回路
                 deadlock_links.push_back(std::vector<BlockedMutex>());
-                std::vector<BlockedMutex> &mutexes =
-                        deadlock_links[deadlock_links.size() - 1];
+                std::vector<BlockedMutex> &mutexes = deadlock_links[deadlock_links.size() - 1];
 
                 // copy死锁链路
                 for (auto &blockItem: items) {
@@ -484,4 +659,82 @@ BlockedMutex *DeadLock::find_next_jump(BlockedMutex *from_mutex)
     }
 
     return NULL;
+}
+
+//
+// RWLockInfo
+
+pthread_mutex_t RWLockInfo::sCacheLock;
+std::vector<RdLockInfo *> RWLockInfo::sCache;
+
+RdLockInfo * RWLockInfo::obtainReadLock() {
+
+    RdLockInfo *rdLock = NULL;
+
+    _lock_(&sCacheLock);
+
+    if (sCache.empty()) {
+        rdLock = new RdLockInfo();
+    } else {
+        rdLock = sCache.back();
+        sCache.pop_back();
+    }
+
+    _unlock_(&sCacheLock);
+
+    return rdLock;
+}
+
+void RWLockInfo::releaseReadLock(RdLockInfo *lock) {
+    _lock_(&sCacheLock);
+
+    if (sCache.size() < READ_LOCK_CACHE_SIZE) {
+        lock->lock = NULL;
+        lock->parent = NULL;
+        sCache.push_back(lock);
+    } else {
+        delete lock;
+    }
+
+    _unlock_(&sCacheLock);
+}
+
+RdLockInfo * RWLockInfo::getReadLock(int tid) {
+    FlagLocker lock(m_readlocks_flag);
+
+    for (auto rdLock: readLocks) {
+        if (rdLock->for_thread == tid) {
+            return rdLock;
+        }
+    }
+
+    RdLockInfo * rdLock = obtainReadLock();
+    if (rdLock) {
+        rdLock->lock = this->lock;
+        rdLock->parent = this;
+        rdLock->for_thread = tid;
+        readLocks.push_back(rdLock);
+        return rdLock;
+    }
+
+    return NULL;
+}
+
+void RWLockInfo::collect_block_items(int tid, std::vector<BlockedMutex> &items) {
+    FlagLocker lock(m_readlocks_flag);
+
+    DeadLock::add_blocked_item(tid, this->lock, this->type, this->owner);
+
+    for (auto rdLock: readLocks) {
+        if (rdLock->owner == rdLock->for_thread) {
+            DeadLock::add_blocked_item(tid, rdLock->lock, rdLock->type, rdLock->owner);
+        }
+    }
+}
+
+RWLockInfo::~RWLockInfo() {
+    FlagLocker lock(m_readlocks_flag);
+    for (auto rdLock: readLocks) {
+        releaseReadLock(rdLock);
+    }
 }

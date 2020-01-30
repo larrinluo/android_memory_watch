@@ -241,7 +241,7 @@ void GotHook::add_pthread_rwlock_unlock_hook(PthreadRWLockUnlockMethod hookMetho
     pthread_rwlock_unlock_hook_list.push_back(hookMethod);
 }
 
-int GotHook::pthread_mutex_lock_hook_entrty(pthread_mutex_t* __mutex) {
+int GotHook::pthread_mutex_lock_hook_entry(pthread_mutex_t* __mutex) {
     PthreadMutexLockContext context;
     context.mutex = __mutex;
 
@@ -387,7 +387,7 @@ bool GotHook::installHooks() {
     }
 
     if (pthread_mutex_lock_hook_list.size() > 0 ) {
-        xhook_register(sDeadLock_targetSo.c_str(), "pthread_mutex_lock", (void *) GotHook::pthread_mutex_lock_hook_entrty, (void **) &GotHook::origin_pthread_mutex_lock);
+        xhook_register(sDeadLock_targetSo.c_str(), "pthread_mutex_lock", (void *) GotHook::pthread_mutex_lock_hook_entry, (void **) &GotHook::origin_pthread_mutex_lock);
     }
 
     if (pthread_mutex_unlock_hook_list.size() > 0) {

@@ -225,7 +225,7 @@ class GotHook {
 
     // pthread_mutex_lock hooks
     static std::vector<PthreadMutexLockMethod > pthread_mutex_lock_hook_list;
-    static int pthread_mutex_lock_hook_entrty(pthread_mutex_t* __mutex);
+    static int pthread_mutex_lock_hook_entry(pthread_mutex_t* __mutex);
 
     // pthread_mutex_unlock hooks
     static std::vector<PthreadMutexUnlockMethod > pthread_mutex_unlock_hook_list;

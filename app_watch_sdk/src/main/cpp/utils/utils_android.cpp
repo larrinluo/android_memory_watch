@@ -75,10 +75,9 @@ static std::string dump_backtrace(void** buffer, size_t depth)
 
         // 忽略get_full_callstack、get_native_callstack方法
         if (strstr(symbol, "get_full_callstack") ||
-            strstr(symbol, "my_pthread_") ||
-            (strstr(symbol, "pthread") &&  strstr(symbol, "hook_entrty")) ||
+//            strstr(symbol, "my_pthread_") ||
+            (strstr(symbol, "pthread") &&  strstr(symbol, "hook_entry")) ||
             (strstr(symbol, "DeadLock") &&  strstr(symbol, "try_lock")) ||
-            strstr(symbol, "hook_entrty") ||
             strstr(symbol, "get_native_callstack")) {
             continue;
         }

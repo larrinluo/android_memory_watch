@@ -35,6 +35,9 @@
 pthread_mutex_t lock1;
 pthread_mutex_t lock2;
 
+pthread_rwlock_t rwLock1;
+pthread_rwlock_t rwLock2;
+
 void *deadlock_thread1(void *arg)
 {
     time_t t;
@@ -62,6 +65,51 @@ void *deadlock_thread2(void *arg)
         sleep(2);
         pthread_mutex_lock(&lock2);
         __android_log_print(ANDROID_LOG_DEBUG, "TESTA", "thread 2 in lock section");
+        sleep(2);
+//        pthread_mutex_unlock(&lock2);
+//        pthread_mutex_unlock(&lock1);
+    }
+}
+
+void *deadlock_thread3(void *arg)
+{
+    time_t t;
+    srand((unsigned) time(&t));
+    while (1) {
+        sleep(10);
+        pthread_rwlock_wrlock(&rwLock1);
+    }
+}
+
+void *deadlock_thread4(void *arg)
+{
+    time_t t;
+    srand((unsigned) time(&t));
+
+    while (1) {
+        //sleep(rand() % 2)
+        pthread_rwlock_rdlock(&rwLock1);
+        sleep(2);
+        pthread_rwlock_wrlock(&rwLock2);
+        sleep(2);
+        __android_log_print(ANDROID_LOG_DEBUG, "TESTA", "thread 4 in lock section");
+        sleep(2);
+//        pthread_mutex_unlock(&lock2);
+//        pthread_mutex_unlock(&lock1);
+    }
+}
+
+void *deadlock_thread5(void *arg)
+{
+    time_t t;
+    srand((unsigned) time(&t));
+
+    while (1) {
+        pthread_rwlock_rdlock(&rwLock2);
+        sleep(1);
+        pthread_rwlock_wrlock(&rwLock1);
+        sleep(2);
+        __android_log_print(ANDROID_LOG_DEBUG, "TESTA", "thread 5 in lock section");
         sleep(2);
 //        pthread_mutex_unlock(&lock2);
 //        pthread_mutex_unlock(&lock1);
@@ -112,15 +160,22 @@ Java_com_ttphoto_resource_watch_sdk_client_WatchSDK_startWatch(JNIEnv *env, jcla
     DeadLock::checkHooks();
 
     // dead lock test
-    pthread_t tid1, tid2;
+    pthread_t tid;
 
     pthread_mutexattr_t attr;
     pthread_mutexattr_init(&attr);
     pthread_mutex_init(&lock1, &attr);
     pthread_mutex_init(&lock2, &attr);
 
-    pthread_create(&tid1, NULL, deadlock_thread1, NULL);
-    pthread_create(&tid2, NULL, deadlock_thread2, NULL);
+    pthread_rwlock_init(&rwLock1, NULL);
+    pthread_rwlock_init(&rwLock2, NULL);
+
+    pthread_create(&tid, NULL, deadlock_thread1, NULL);
+    pthread_create(&tid, NULL, deadlock_thread2, NULL);
+
+    pthread_create(&tid, NULL, deadlock_thread3, NULL);
+    pthread_create(&tid, NULL, deadlock_thread4, NULL);
+    pthread_create(&tid, NULL, deadlock_thread5, NULL);
 }
 
 } // extern "C"
