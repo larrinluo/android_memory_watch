@@ -81,7 +81,20 @@ int DeadLock::my_pthread_mutex_destroy(PthreadMutexDestroyContext &context) {
 
 int DeadLock::my_pthread_mutex_lock(PthreadMutexLockContext &context) {
 
-    LockInfo *pLock = getLock(context.mutex);
+    LockInfo *pLock = NULL;
+    _lock_map_();
+    LOCK_MAP::iterator it = sLockMap.find(context.mutex);
+    if (it != sLockMap.end()) {
+        pLock =  it->second;
+    } else {
+        pLock = new LockInfo();
+        pLock->type = MUTEX_TYPE::MUTEX;
+        pLock->lock = context.mutex;
+        sLockMap[context.mutex] = pLock;
+        int count = sLockMap.size();
+    }
+    _unlock_map_();
+
     if (pLock) {
         context.retVal = try_lock(*pLock);
         return 1;
@@ -129,7 +142,20 @@ int DeadLock::my_pthread_rwlock_destroy(PthreadRwLockDestroyContext &context) {
 }
 
 int DeadLock::my_pthread_rwlock_wrlock(PthreadRWLockWRLockContext &context) {
-    LockInfo *pLock = getLock(context.rwlock);
+
+    LockInfo *pLock = NULL;
+    _lock_map_();
+    LOCK_MAP::iterator it = sLockMap.find(context.rwlock);
+    if (it != sLockMap.end()) {
+        pLock =  it->second;
+    } else {
+        pLock = new LockInfo();
+        pLock->type = MUTEX_TYPE::RW_LOCK;
+        pLock->lock = context.rwlock;
+        sLockMap[context.rwlock] = pLock;
+        int count = sLockMap.size();
+    }
+    _unlock_map_();
 
     if (pLock) {
         context.retVal = try_lock(*pLock);
@@ -140,7 +166,20 @@ int DeadLock::my_pthread_rwlock_wrlock(PthreadRWLockWRLockContext &context) {
 }
 
 int DeadLock::my_pthread_rwlock_rdlock(PthreadRWLockRDLockContext &context) {
-    RWLockInfo *pLock = (RWLockInfo *) getLock(context.rwlock);
+
+    RWLockInfo *pLock = NULL;
+    _lock_map_();
+    LOCK_MAP::iterator it = sLockMap.find(context.rwlock);
+    if (it != sLockMap.end()) {
+        pLock =  (RWLockInfo *) it->second;
+    } else {
+        pLock = new RWLockInfo();
+        pLock->type = MUTEX_TYPE::RW_LOCK;
+        pLock->lock = context.rwlock;
+        sLockMap[context.rwlock] = pLock;
+        int count = sLockMap.size();
+    }
+    _unlock_map_();
 
     if (pLock) {
         int tid = get_tid();
@@ -179,6 +218,44 @@ int DeadLock::my_pthread_rwlock_unlock(PthreadRWLockUnlockContext &context) {
     return 0;
 }
 
+int DeadLock::my_pthread_cond_wait(PthreadCondWaitContext &context) {
+
+    LockInfo *pLock = getLock(context.mutex);
+    if (pLock) {
+        pLock->owner = 0;
+        pLock->enter_time = 0;
+    }
+
+    context.retVal = GotHook::origin_pthread_cond_wait(context.cond, context.mutex);
+
+    if (pLock) {
+        pLock->owner = get_tid();
+        pLock->enter_time = get_relative_millisecond();
+    }
+
+    return 1;
+}
+
+int DeadLock::my_pthread_cond_timedwait(PthreadCondTimedWaitContext &context) {
+
+    LockInfo *pLock = getLock(context.mutex);
+    if (pLock) {
+        pLock->owner = 0;
+        pLock->enter_time = 0;
+    }
+
+    context.retVal = GotHook::origin_pthread_cond_timedwait(context.cond, context.mutex, context.timeout);
+
+    if (context.retVal == 0) {
+        if (pLock) {
+            pLock->owner = get_tid();
+            pLock->enter_time = get_relative_millisecond();
+        }
+    }
+
+    return 1;
+}
+
 void DeadLock::registerHooks(int sdkVersion, const char *targetSo, const char *path) {
 
     DeadLock::sdkVersion = sdkVersion;
@@ -210,6 +287,9 @@ void DeadLock::registerHooks(int sdkVersion, const char *targetSo, const char *p
     GotHook::add_pthread_rwlock_rdlock_hook(my_pthread_rwlock_rdlock);
     GotHook::add_pthread_rwlock_wdlock_hook(my_pthread_rwlock_wrlock);
     GotHook::add_pthread_rwlock_unlock_hook(my_pthread_rwlock_unlock);
+
+    GotHook::add_pthread_cond_wait_hook(my_pthread_cond_wait);
+    GotHook::add_pthread_cond_timedwait_hook(my_pthread_cond_timedwait);
 }
 
 void DeadLock::checkHooks() {
@@ -274,8 +354,7 @@ int DeadLock::try_lock(LockInfo &lock, bool readLock) {
             }
         }
 
-        if (lock.owner == tid && !lock.recursive) {
-            // 线程在不可重入锁上把自锁了
+        if (lock.owner == tid /*&& !lock.recursive*/) { // 线程在不可重入锁上把自锁了
             if (!selfLockDetected) {
                 selfLockDetected = true;
 
@@ -302,7 +381,7 @@ int DeadLock::try_lock(LockInfo &lock, bool readLock) {
                          256,
                          "Deadlock callstack, thread: %d (%s) :\n",
                          tid,
-                         tname);
+                         get_thread_name(tname, tid));
 
                 log += buf;
 

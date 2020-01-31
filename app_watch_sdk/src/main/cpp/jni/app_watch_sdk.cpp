@@ -30,6 +30,7 @@
 #include "../anr/trace_hook.h"
 #include "../deadlock/deadlock.h"
 #include <android/log.h>
+#include <mutex>
 
 
 pthread_mutex_t lock1;
@@ -37,6 +38,9 @@ pthread_mutex_t lock2;
 
 pthread_rwlock_t rwLock1;
 pthread_rwlock_t rwLock2;
+
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t  cond  = PTHREAD_COND_INITIALIZER;
 
 void *deadlock_thread1(void *arg)
 {
@@ -162,6 +166,12 @@ Java_com_ttphoto_resource_watch_sdk_client_WatchSDK_startWatch(JNIEnv *env, jcla
     // dead lock test
     pthread_t tid;
 
+    {
+        std::mutex mutex;
+        mutex.lock();
+        mutex.unlock();
+    }
+
     pthread_mutexattr_t attr;
     pthread_mutexattr_init(&attr);
     pthread_mutex_init(&lock1, &attr);
@@ -169,6 +179,9 @@ Java_com_ttphoto_resource_watch_sdk_client_WatchSDK_startWatch(JNIEnv *env, jcla
 
     pthread_rwlock_init(&rwLock1, NULL);
     pthread_rwlock_init(&rwLock2, NULL);
+
+//    pthread_mutex_lock(&lock1);
+//    pthread_cond_wait(&cond, &lock1, &tout);
 
     pthread_create(&tid, NULL, deadlock_thread1, NULL);
     pthread_create(&tid, NULL, deadlock_thread2, NULL);

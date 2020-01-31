@@ -78,6 +78,12 @@ PTHREAD_RWLOCK_WRLOCK GotHook::origin_pthread_rwlock_wrlock = NULL;
 std::vector<PthreadRWLockUnlockMethod > GotHook::pthread_rwlock_unlock_hook_list;
 PTHREAD_RWLOCK_UNLOCK GotHook::origin_pthread_rwlock_unlock = NULL;
 
+std::vector<PthreadCondWaitMethod > GotHook::pthread_cond_wait_hook_list;
+PTHREAD_COND_WAIT GotHook::origin_pthread_cond_wait = NULL;
+
+std::vector<PthreadCondTimedWaitMethod > GotHook::pthread_cond_timedwait_hook_list;
+PTHREAD_COND_TIMEDWAIT GotHook::origin_pthread_cond_timedwait = NULL;
+
 int GotHook::open_hook_entry(const char* pathname, int flags, mode_t mode) {
     OpenMethodContext context;
     context.pathname = pathname;
@@ -241,6 +247,14 @@ void GotHook::add_pthread_rwlock_unlock_hook(PthreadRWLockUnlockMethod hookMetho
     pthread_rwlock_unlock_hook_list.push_back(hookMethod);
 }
 
+void GotHook::add_pthread_cond_wait_hook(PthreadCondWaitMethod hookMethod) {
+    pthread_cond_wait_hook_list.push_back(hookMethod);
+}
+
+void GotHook::add_pthread_cond_timedwait_hook(PthreadCondTimedWaitMethod hookMethod) {
+    pthread_cond_timedwait_hook_list.push_back(hookMethod);
+}
+
 int GotHook::pthread_mutex_lock_hook_entry(pthread_mutex_t* __mutex) {
     PthreadMutexLockContext context;
     context.mutex = __mutex;
@@ -364,6 +378,35 @@ int GotHook::pthread_rwlock_unlock_hook_entry(pthread_rwlock_t* __rwlock) {
     return GotHook::origin_pthread_rwlock_unlock(context.rwlock);
 }
 
+int GotHook::pthread_cond_wait_hook_entry(pthread_cond_t* __cond, pthread_mutex_t* __mutex) {
+    PthreadCondWaitContext context;
+    context.cond = __cond;
+    context.mutex = __mutex;
+
+    for (auto hook: GotHook::pthread_cond_wait_hook_list) {
+        if (hook(context)) {
+            return context.retVal;
+        }
+    }
+
+    return GotHook::origin_pthread_cond_wait(context.cond, context.mutex);
+}
+
+int GotHook::pthread_cond_timedwait_hook_entry(pthread_cond_t* __cond, pthread_mutex_t* __mutex, const struct timespec* __timeout) {
+    PthreadCondTimedWaitContext context;
+    context.cond = __cond;
+    context.mutex = __mutex;
+    context.timeout = __timeout;
+
+    for (auto hook: GotHook::pthread_cond_timedwait_hook_list) {
+        if (hook(context)) {
+            return context.retVal;
+        }
+    }
+
+    return GotHook::origin_pthread_cond_timedwait(context.cond, context.mutex, context.timeout);
+}
+
 bool GotHook::installHooks() {
 
     if (targetSo_write.length() > 0) {
@@ -421,6 +464,14 @@ bool GotHook::installHooks() {
 
     if (pthread_rwlock_unlock_hook_list.size() > 0 ) {
         xhook_register(sDeadLock_targetSo.c_str(), "pthread_rwlock_unlock", (void *) GotHook::pthread_rwlock_unlock_hook_entry, (void **) &GotHook::origin_pthread_rwlock_unlock);
+    }
+
+    if (pthread_cond_wait_hook_list.size() > 0) {
+        xhook_register(sDeadLock_targetSo.c_str(), "pthread_cond_wait", (void *) GotHook::pthread_cond_wait_hook_entry, (void **) &GotHook::origin_pthread_cond_wait);
+    }
+
+    if (pthread_cond_timedwait_hook_list.size() > 0) {
+        xhook_register(sDeadLock_targetSo.c_str(), "pthread_cond_timedwait", (void *) GotHook::pthread_cond_timedwait_hook_entry, (void **) &GotHook::origin_pthread_cond_timedwait);
     }
 
     xhook_refresh(false);
@@ -497,6 +548,15 @@ bool GotHook::installHooks() {
         ret = false;
     }
 
+    if (pthread_cond_wait_hook_list.size() > 0 && GotHook::origin_pthread_cond_wait != NULL) {
+        __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_cond_wait hook failed!!");
+        ret = false;
+    }
+
+    if (pthread_cond_timedwait_hook_list.size() > 0 && GotHook::origin_pthread_cond_timedwait != NULL) {
+        __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_cond_timedwait hook failed!!");
+        ret = false;
+    }
 
     if (!ret) {
         //xhook_clear();

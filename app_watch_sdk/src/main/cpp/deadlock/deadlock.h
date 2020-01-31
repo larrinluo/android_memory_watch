@@ -169,6 +169,9 @@ class DeadLock {
     static int my_pthread_rwlock_wrlock(PthreadRWLockWRLockContext &context);
     static int my_pthread_rwlock_unlock(PthreadRWLockUnlockContext &context);
 
+    static int my_pthread_cond_wait(PthreadCondWaitContext &context);
+    static int my_pthread_cond_timedwait(PthreadCondTimedWaitContext &context);
+
     static inline LockInfo * getLock(void * _lock) {
         LockInfo *pLock;
         GotHook::origin_pthread_mutex_lock(&sLock);

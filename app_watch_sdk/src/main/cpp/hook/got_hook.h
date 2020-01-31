@@ -50,6 +50,9 @@ typedef int (*PTHREAD_RWLOCK_RDLOCK)(pthread_rwlock_t* __rwlock);
 typedef int (*PTHREAD_RWLOCK_WRLOCK)(pthread_rwlock_t* __rwlock);
 typedef int (*PTHREAD_RWLOCK_UNLOCK)(pthread_rwlock_t* __rwlock);
 
+typedef int (*PTHREAD_COND_WAIT)(pthread_cond_t* __cond, pthread_mutex_t* __mutex);
+typedef int (*PTHREAD_COND_TIMEDWAIT)(pthread_cond_t* __cond, pthread_mutex_t* __mutex, const struct timespec* __timeout);
+
 #if __ANDROID_API__ >= __ANDROID_API_N__
 typedef int (*PTHREAD_SPIN_DESTROY)(pthread_spinlock_t* __spinlock);
 typedef int (*PTHREAD_SPIN_INIT)(pthread_spinlock_t* __spinlock, int __shared);
@@ -173,6 +176,21 @@ struct PthreadRWLockUnlockContext {
     int retVal;
 };
 
+struct PthreadCondWaitContext {
+    pthread_cond_t* cond;
+    pthread_mutex_t* mutex;
+    int retVal;
+};
+
+struct PthreadCondTimedWaitContext {
+    pthread_cond_t* cond;
+    pthread_mutex_t* mutex;
+    const struct timespec* timeout;
+
+    int retVal;
+};
+
+
 typedef int (*OpenHookMethod)(OpenMethodContext &);
 typedef int (*WriteHookMethod)(WriteMethodContext &);
 typedef int (*CloseMethod)(CloseMethodContext&);
@@ -190,9 +208,8 @@ typedef int (*PthreadRWLockRdlockMethod)(PthreadRWLockRDLockContext &);
 typedef int (*PthreadRWLockWrLockMethod)(PthreadRWLockWRLockContext &);
 typedef int (*PthreadRWLockUnlockMethod)(PthreadRWLockUnlockContext &);
 
-
-typedef int (*PTHREAD_MUTEX_INIT)(pthread_mutex_t* __mutex, const pthread_mutexattr_t* __attr);
-typedef int (*PTHREAD_MUTEX_DESTROY)(pthread_mutex_t* __mutex);
+typedef int (*PthreadCondWaitMethod)(PthreadCondWaitContext &);
+typedef int (*PthreadCondTimedWaitMethod)(PthreadCondTimedWaitContext &);
 
 class GotHook {
 
@@ -262,6 +279,14 @@ class GotHook {
     static std::vector<PthreadRWLockUnlockMethod > pthread_rwlock_unlock_hook_list;
     static int pthread_rwlock_unlock_hook_entry(pthread_rwlock_t* __rwlock);
 
+    // pthread_cond_wait hooks
+    static std::vector<PthreadCondWaitMethod > pthread_cond_wait_hook_list;
+    static int pthread_cond_wait_hook_entry(pthread_cond_t* __cond, pthread_mutex_t* __mutex);
+
+    // pthread_cond_timedwait hooks
+    static std::vector<PthreadCondTimedWaitMethod > pthread_cond_timedwait_hook_list;
+    static int pthread_cond_timedwait_hook_entry(pthread_cond_t* __cond, pthread_mutex_t* __mutex, const struct timespec* __timeout);
+
 public:
 
     static OPEN_METHOD origin_open;
@@ -281,6 +306,9 @@ public:
     static PTHREAD_RWLOCK_WRLOCK origin_pthread_rwlock_wrlock;
     static PTHREAD_RWLOCK_UNLOCK origin_pthread_rwlock_unlock;
 
+    static PTHREAD_COND_WAIT origin_pthread_cond_wait;
+    static PTHREAD_COND_TIMEDWAIT origin_pthread_cond_timedwait;
+
     static void add_open_hook(const char *targetSo, OpenHookMethod hookMethod);
     static void add_write_hook(const char *targetSo, WriteHookMethod hookMethod);
     static void add_close_hook(const char *targetSo, CloseMethod hookMethod);
@@ -298,6 +326,9 @@ public:
     static void add_pthread_rwlock_rdlock_hook(PthreadRWLockRdlockMethod);
     static void add_pthread_rwlock_wdlock_hook(PthreadRWLockWrLockMethod);
     static void add_pthread_rwlock_unlock_hook(PthreadRWLockUnlockMethod);
+
+    static void add_pthread_cond_wait_hook(PthreadCondWaitMethod);
+    static void add_pthread_cond_timedwait_hook(PthreadCondTimedWaitMethod);
 
     static void setDeadLockTargetSo(const char *so) {
         sDeadLock_targetSo = so;
