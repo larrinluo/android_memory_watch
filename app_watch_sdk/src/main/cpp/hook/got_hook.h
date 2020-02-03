@@ -190,6 +190,28 @@ struct PthreadCondTimedWaitContext {
     int retVal;
 };
 
+#if __ANDROID_API__ >= __ANDROID_API_N__
+struct PthreadSpinDestroyContext {
+    pthread_spinlock_t* spinlock;
+    int retVal;
+};
+
+struct PthreadSpinInitContext {
+    pthread_spinlock_t* spinlock;
+    int shared;
+    int retVal;
+};
+
+struct PthreadSpinLockContext {
+    pthread_spinlock_t* spinlock;
+    int retVal;
+};
+
+struct PthreadSpinUnlockContext {
+    pthread_spinlock_t* spinlock;
+    int retVal;
+};
+#endif
 
 typedef int (*OpenHookMethod)(OpenMethodContext &);
 typedef int (*WriteHookMethod)(WriteMethodContext &);
@@ -207,6 +229,13 @@ typedef int (*PthreadRWLockDestoryMethod)(PthreadRwLockDestroyContext &);
 typedef int (*PthreadRWLockRdlockMethod)(PthreadRWLockRDLockContext &);
 typedef int (*PthreadRWLockWrLockMethod)(PthreadRWLockWRLockContext &);
 typedef int (*PthreadRWLockUnlockMethod)(PthreadRWLockUnlockContext &);
+
+#if __ANDROID_API__ >= __ANDROID_API_N__
+typedef int (*PthreadSpinInitMethod)(PthreadSpinInitContext &);
+typedef int (*PthreadSpinDestroyMethod)(PthreadSpinDestroyContext &);
+typedef int (*PthreadSpinLockMethod)(PthreadSpinLockContext &);
+typedef int (*PthreadSpinUnlockMethod)(PthreadSpinUnlockContext &);
+#endif
 
 typedef int (*PthreadCondWaitMethod)(PthreadCondWaitContext &);
 typedef int (*PthreadCondTimedWaitMethod)(PthreadCondTimedWaitContext &);
@@ -287,6 +316,26 @@ class GotHook {
     static std::vector<PthreadCondTimedWaitMethod > pthread_cond_timedwait_hook_list;
     static int pthread_cond_timedwait_hook_entry(pthread_cond_t* __cond, pthread_mutex_t* __mutex, const struct timespec* __timeout);
 
+#if __ANDROID_API__ >= __ANDROID_API_N__
+
+    // pthread_spin_lock hooks
+    static std::vector<PthreadSpinInitMethod> pthread_spin_init_hook_list;
+    static int pthread_spin_init_hook_entry(pthread_spinlock_t* __spinlock, int __shared);
+
+    // pthread_spin_destroy hooks
+    static std::vector<PthreadSpinDestroyMethod> pthread_spin_destroy_hook_list;
+    static int pthread_spin_destroy_hook_entry(pthread_spinlock_t* __spinlock);
+
+    // pthread_spin_lock hooks
+    static std::vector<PthreadSpinLockMethod> pthread_spin_lock_hook_list;
+    static int pthread_spin_lock_hook_entry(pthread_spinlock_t* __spinlock);
+
+    // ptrhead_spin_unlock hooks
+    static std::vector<PthreadSpinUnlockMethod> pthread_spin_unlock_hook_list;
+    static int pthread_spin_unlock_hook_entry(pthread_spinlock_t* __spinlock);
+
+#endif
+
 public:
 
     static OPEN_METHOD origin_open;
@@ -306,6 +355,13 @@ public:
     static PTHREAD_RWLOCK_WRLOCK origin_pthread_rwlock_wrlock;
     static PTHREAD_RWLOCK_UNLOCK origin_pthread_rwlock_unlock;
 
+#if __ANDROID_API__ >= __ANDROID_API_N__
+    static PTHREAD_SPIN_DESTROY origin_pthread_spin_destroy;
+    static PTHREAD_SPIN_INIT origin_pthread_spin_init;
+    static PTHREAD_SPIN_LOCK origin_pthread_spin_lock;
+    static PTHREAD_SPIN_UNLOCK origin_pthread_spin_unlock;
+#endif
+
     static PTHREAD_COND_WAIT origin_pthread_cond_wait;
     static PTHREAD_COND_TIMEDWAIT origin_pthread_cond_timedwait;
 
@@ -320,12 +376,20 @@ public:
     static void add_pthread_mutex_init_hook(PthreadMutexInitMethod);
     static void add_pthread_mutex_destroy_hook(PthreadMutexDestroyMethod);
 
-
     static void add_pthread_rwlock_init_hook(PthreadRWLockInitMethod);
     static void add_pthread_rwlock_destory_hook(PthreadRWLockDestoryMethod);
     static void add_pthread_rwlock_rdlock_hook(PthreadRWLockRdlockMethod);
     static void add_pthread_rwlock_wdlock_hook(PthreadRWLockWrLockMethod);
     static void add_pthread_rwlock_unlock_hook(PthreadRWLockUnlockMethod);
+
+#if __ANDROID_API__ >= __ANDROID_API_N__
+
+    static void add_pthread_spin_init_hook(PthreadSpinInitMethod);
+    static void add_pthread_spin_destroy_hook(PthreadSpinDestroyMethod);
+    static void add_pthread_spin_lock_hook(PthreadSpinLockMethod);
+    static void add_pthread_spin_unlock_hook(PthreadSpinUnlockMethod);
+
+#endif
 
     static void add_pthread_cond_wait_hook(PthreadCondWaitMethod);
     static void add_pthread_cond_timedwait_hook(PthreadCondTimedWaitMethod);

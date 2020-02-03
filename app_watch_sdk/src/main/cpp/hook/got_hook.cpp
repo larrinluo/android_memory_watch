@@ -84,6 +84,23 @@ PTHREAD_COND_WAIT GotHook::origin_pthread_cond_wait = NULL;
 std::vector<PthreadCondTimedWaitMethod > GotHook::pthread_cond_timedwait_hook_list;
 PTHREAD_COND_TIMEDWAIT GotHook::origin_pthread_cond_timedwait = NULL;
 
+
+#if __ANDROID_API__ >= __ANDROID_API_N__
+
+std::vector<PthreadSpinInitMethod> GotHook::pthread_spin_init_hook_list;
+PTHREAD_SPIN_INIT GotHook::origin_pthread_spin_init = NULL;
+
+std::vector<PthreadSpinDestroyMethod> GotHook::pthread_spin_destroy_hook_list;
+PTHREAD_SPIN_DESTROY GotHook::origin_pthread_spin_destroy = NULL;
+
+std::vector<PthreadSpinLockMethod> GotHook::pthread_spin_lock_hook_list;
+PTHREAD_SPIN_LOCK GotHook::origin_pthread_spin_lock = NULL;
+
+std::vector<PthreadSpinUnlockMethod> GotHook::pthread_spin_unlock_hook_list;
+PTHREAD_SPIN_UNLOCK GotHook::origin_pthread_spin_unlock = NULL;
+
+#endif
+
 int GotHook::open_hook_entry(const char* pathname, int flags, mode_t mode) {
     OpenMethodContext context;
     context.pathname = pathname;
@@ -407,6 +424,79 @@ int GotHook::pthread_cond_timedwait_hook_entry(pthread_cond_t* __cond, pthread_m
     return GotHook::origin_pthread_cond_timedwait(context.cond, context.mutex, context.timeout);
 }
 
+#if __ANDROID_API__ >= __ANDROID_API_N__
+
+int GotHook::pthread_spin_init_hook_entry(pthread_spinlock_t* __spinlock, int __shared) {
+    PthreadSpinInitContext context;
+    context.spinlock = __spinlock;
+    context.shared = __shared;
+
+    for (auto hook: GotHook::pthread_spin_init_hook_list) {
+        if (hook(context)) {
+            return context.retVal;
+        }
+    }
+
+    return GotHook::origin_pthread_spin_init(context.spinlock, context.shared);
+}
+
+int GotHook::pthread_spin_destroy_hook_entry(pthread_spinlock_t* __spinlock) {
+    PthreadSpinDestroyContext context;
+    context.spinlock = __spinlock;
+
+    for (auto hook: GotHook::pthread_spin_destroy_hook_list) {
+        if (hook(context)) {
+            return context.retVal;
+        }
+    }
+
+    return GotHook::origin_pthread_spin_destroy(context.spinlock);
+}
+
+int GotHook::pthread_spin_lock_hook_entry(pthread_spinlock_t* __spinlock) {
+    PthreadSpinLockContext context;
+    context.spinlock = __spinlock;
+
+    for (auto hook: GotHook::pthread_spin_lock_hook_list) {
+        if (hook(context)) {
+            return context.retVal;
+        }
+    }
+
+    return GotHook::origin_pthread_spin_lock(context.spinlock);
+}
+
+int GotHook::pthread_spin_unlock_hook_entry(pthread_spinlock_t* __spinlock) {
+    PthreadSpinUnlockContext context;
+    context.spinlock = __spinlock;
+
+    for (auto hook: GotHook::pthread_spin_unlock_hook_list) {
+        if (hook(context)) {
+            return context.retVal;
+        }
+    }
+
+    return GotHook::origin_pthread_spin_unlock(context.spinlock);
+}
+
+void GotHook::add_pthread_spin_init_hook(PthreadSpinInitMethod hookMethod) {
+    pthread_spin_init_hook_list.push_back(hookMethod);
+}
+
+void GotHook::add_pthread_spin_destroy_hook(PthreadSpinDestroyMethod hookMethod) {
+    pthread_spin_destroy_hook_list.push_back(hookMethod);
+}
+
+void GotHook::add_pthread_spin_lock_hook(PthreadSpinLockMethod hookMethod) {
+    pthread_spin_lock_hook_list.push_back(hookMethod);
+}
+
+void GotHook::add_pthread_spin_unlock_hook(PthreadSpinUnlockMethod hookMethod) {
+    pthread_spin_unlock_hook_list.push_back(hookMethod);
+}
+
+#endif
+
 bool GotHook::installHooks() {
 
     if (targetSo_write.length() > 0) {
@@ -474,6 +564,26 @@ bool GotHook::installHooks() {
         xhook_register(sDeadLock_targetSo.c_str(), "pthread_cond_timedwait", (void *) GotHook::pthread_cond_timedwait_hook_entry, (void **) &GotHook::origin_pthread_cond_timedwait);
     }
 
+#if __ANDROID_API__ >= __ANDROID_API_N__
+
+    if (pthread_spin_init_hook_list.size() > 0) {
+        xhook_register(sDeadLock_targetSo.c_str(), "pthread_spin_init", (void *) GotHook::pthread_spin_init_hook_entry, (void **) &GotHook::origin_pthread_spin_init);
+    }
+
+    if (pthread_spin_destroy_hook_list.size() > 0) {
+        xhook_register(sDeadLock_targetSo.c_str(), "pthread_spin_destroy", (void *) GotHook::pthread_spin_destroy_hook_entry, (void **) &GotHook::origin_pthread_spin_destroy);
+    }
+
+    if (pthread_spin_lock_hook_list.size() > 0) {
+        xhook_register(sDeadLock_targetSo.c_str(), "pthread_spin_lock", (void *) GotHook::pthread_spin_lock_hook_entry, (void **) &GotHook::origin_pthread_spin_lock);
+    }
+
+    if (pthread_spin_unlock_hook_list.size() > 0) {
+        xhook_register(sDeadLock_targetSo.c_str(), "pthread_spin_unlock", (void *) GotHook::pthread_spin_unlock_hook_entry, (void **) &GotHook::origin_pthread_spin_unlock);
+    }
+
+#endif
+
     xhook_refresh(false);
 
     bool ret = true;
@@ -528,35 +638,59 @@ bool GotHook::installHooks() {
         ret = false;
     }
 
-    if (pthread_rwlock_destroy_hook_list.size() > 0 && GotHook::origin_pthread_rwlock_destroy != NULL) {
+    if (pthread_rwlock_destroy_hook_list.size() > 0 && GotHook::origin_pthread_rwlock_destroy == NULL) {
         __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_rwlock_destroy hook failed!!");
         ret = false;
     }
 
-    if (pthread_rwlock_rdlock_hook_list.size() > 0 && GotHook::origin_pthread_rwlock_rdlock != NULL) {
+    if (pthread_rwlock_rdlock_hook_list.size() > 0 && GotHook::origin_pthread_rwlock_rdlock == NULL) {
         __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_rwlock_rwlock hook failed!!");
         ret = false;
     }
 
-    if (pthread_rwlock_wrlock_hook_list.size() > 0 && GotHook::origin_pthread_rwlock_wrlock != NULL) {
+    if (pthread_rwlock_wrlock_hook_list.size() > 0 && GotHook::origin_pthread_rwlock_wrlock == NULL) {
         __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_rwlock_wdlock hook failed!!");
         ret = false;
     }
 
-    if (pthread_rwlock_unlock_hook_list.size() > 0 && GotHook::origin_pthread_rwlock_unlock != NULL) {
+    if (pthread_rwlock_unlock_hook_list.size() > 0 && GotHook::origin_pthread_rwlock_unlock == NULL) {
         __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_rwlock_unlock hook failed!!");
         ret = false;
     }
 
-    if (pthread_cond_wait_hook_list.size() > 0 && GotHook::origin_pthread_cond_wait != NULL) {
+    if (pthread_cond_wait_hook_list.size() > 0 && GotHook::origin_pthread_cond_wait == NULL) {
         __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_cond_wait hook failed!!");
         ret = false;
     }
 
-    if (pthread_cond_timedwait_hook_list.size() > 0 && GotHook::origin_pthread_cond_timedwait != NULL) {
+    if (pthread_cond_timedwait_hook_list.size() > 0 && GotHook::origin_pthread_cond_timedwait == NULL) {
         __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_cond_timedwait hook failed!!");
         ret = false;
     }
+
+#if __ANDROID_API__ >= __ANDROID_API_N__
+
+    if (pthread_spin_init_hook_list.size() > 0 && GotHook::pthread_spin_init_hook_entry == NULL) {
+        __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_spin_init hook failed!!");
+        ret = false;
+    }
+
+    if (pthread_spin_destroy_hook_list.size() > 0 && GotHook::origin_pthread_spin_destroy == NULL) {
+        __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_spin_destroy hook failed!!");
+        ret = false;
+    }
+
+    if (pthread_spin_lock_hook_list.size() > 0 && GotHook::origin_pthread_spin_lock == NULL) {
+        __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_spin_lock hook failed!!");
+        ret = false;
+    }
+
+    if (pthread_spin_unlock_hook_list.size() > 0 && GotHook::origin_pthread_spin_unlock == NULL) {
+        __android_log_print(ANDROID_LOG_WARN, TAG, "install pthread_spin_lock hook failed!!");
+        ret = false;
+    }
+
+#endif
 
     if (!ret) {
         //xhook_clear();

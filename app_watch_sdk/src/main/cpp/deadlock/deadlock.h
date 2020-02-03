@@ -39,6 +39,7 @@ struct MUTEX_TYPE {
         UNKNOWN,
         MUTEX,
         RW_LOCK,
+        SPIN
     };
 };
 
@@ -168,6 +169,13 @@ class DeadLock {
     static int my_pthread_rwlock_rdlock(PthreadRWLockRDLockContext &context);
     static int my_pthread_rwlock_wrlock(PthreadRWLockWRLockContext &context);
     static int my_pthread_rwlock_unlock(PthreadRWLockUnlockContext &context);
+
+#if __ANDROID_API__ >= __ANDROID_API_N__
+    static int my_pthread_spin_init(PthreadSpinInitContext &context);
+    static int my_pthread_spin_destroy(PthreadSpinDestroyContext &context);
+    static int my_pthread_spin_lock(PthreadSpinLockContext &context);
+    static int my_pthread_spin_unlock(PthreadSpinUnlockContext &context);
+#endif
 
     static int my_pthread_cond_wait(PthreadCondWaitContext &context);
     static int my_pthread_cond_timedwait(PthreadCondTimedWaitContext &context);

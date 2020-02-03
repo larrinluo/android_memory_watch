@@ -91,7 +91,6 @@ int DeadLock::my_pthread_mutex_lock(PthreadMutexLockContext &context) {
         pLock->type = MUTEX_TYPE::MUTEX;
         pLock->lock = context.mutex;
         sLockMap[context.mutex] = pLock;
-        int count = sLockMap.size();
     }
     _unlock_map_();
 
@@ -153,7 +152,6 @@ int DeadLock::my_pthread_rwlock_wrlock(PthreadRWLockWRLockContext &context) {
         pLock->type = MUTEX_TYPE::RW_LOCK;
         pLock->lock = context.rwlock;
         sLockMap[context.rwlock] = pLock;
-        int count = sLockMap.size();
     }
     _unlock_map_();
 
@@ -177,7 +175,6 @@ int DeadLock::my_pthread_rwlock_rdlock(PthreadRWLockRDLockContext &context) {
         pLock->type = MUTEX_TYPE::RW_LOCK;
         pLock->lock = context.rwlock;
         sLockMap[context.rwlock] = pLock;
-        int count = sLockMap.size();
     }
     _unlock_map_();
 
@@ -256,6 +253,67 @@ int DeadLock::my_pthread_cond_timedwait(PthreadCondTimedWaitContext &context) {
     return 1;
 }
 
+#if __ANDROID_API__ >= __ANDROID_API_N__
+
+int DeadLock::my_pthread_spin_init(PthreadSpinInitContext &context) {
+    int count;
+    _lock_map_();
+    LockInfo *lock = new LockInfo();
+    lock->type = MUTEX_TYPE::SPIN;
+    lock->lock = context.spinlock;
+    sLockMap[context.spinlock] = lock;
+    count = sLockMap.size();
+    _unlock_map_();
+
+    return 0;
+}
+
+int DeadLock::my_pthread_spin_destroy(PthreadSpinDestroyContext &context) {
+    int count;
+    _lock_map_();
+    LOCK_MAP::iterator it = sLockMap.find(context.spinlock);
+    if (it != sLockMap.end()) {
+        delete it->second;
+        sLockMap.erase(context.spinlock);
+    }
+    count = sLockMap.size();
+    _unlock_map_();
+
+    return 0;
+}
+
+int DeadLock::my_pthread_spin_lock(PthreadSpinLockContext &context) {
+    LockInfo *pLock = NULL;
+    _lock_map_();
+    LOCK_MAP::iterator it = sLockMap.find(context.spinlock);
+    if (it != sLockMap.end()) {
+        pLock =  it->second;
+    } else {
+        pLock->type = MUTEX_TYPE::SPIN;
+        pLock->lock = context.spinlock;
+        sLockMap[context.spinlock] = pLock;
+    }
+    _unlock_map_();
+
+    if (pLock) {
+        context.retVal = try_lock(*pLock);
+        return 1;
+    }
+
+    return 0;
+}
+
+int DeadLock::my_pthread_spin_unlock(PthreadSpinUnlockContext &context) {
+    LockInfo *pLock = getLock(context.spinlock);
+    if (pLock) {
+        unlock(*pLock);
+    }
+
+    return 0;
+}
+
+#endif
+
 void DeadLock::registerHooks(int sdkVersion, const char *targetSo, const char *path) {
 
     DeadLock::sdkVersion = sdkVersion;
@@ -290,6 +348,13 @@ void DeadLock::registerHooks(int sdkVersion, const char *targetSo, const char *p
 
     GotHook::add_pthread_cond_wait_hook(my_pthread_cond_wait);
     GotHook::add_pthread_cond_timedwait_hook(my_pthread_cond_timedwait);
+
+#if __ANDROID_API__ >= __ANDROID_API_N__
+    GotHook::add_pthread_spin_init_hook(my_pthread_spin_init);
+    GotHook::add_pthread_spin_destroy_hook(my_pthread_spin_destroy);
+    GotHook::add_pthread_spin_lock_hook(my_pthread_spin_lock);
+    GotHook::add_pthread_spin_unlock_hook(my_pthread_spin_unlock);
+#endif
 }
 
 void DeadLock::checkHooks() {
@@ -542,7 +607,6 @@ int DeadLock::timed_lock(LockInfo& lock, int timeout, bool readLock) {
                 ret = pthread_rwlock_timedrdlock((pthread_rwlock_t *)lock.lock, &tout);
             }
 
-
         } else {
 
             if (timeout < 0) {
@@ -561,6 +625,21 @@ int DeadLock::timed_lock(LockInfo& lock, int timeout, bool readLock) {
             }
         }
 
+    } else if (lock.type == MUTEX_TYPE::SPIN) {
+        if (timeout < 0) {
+            ret = GotHook::origin_pthread_spin_lock((pthread_spinlock_t *)lock.lock);
+        } else {
+
+            long tm = 0;
+            while (tm < timeout) {
+                ret = pthread_spin_trylock((pthread_spinlock_t *) lock.lock);
+                if (ret == 0)
+                    break;
+
+                usleep(50);
+                tm += 50;
+            }
+        }
     }
 
     return ret;
