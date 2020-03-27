@@ -25,7 +25,7 @@ class MainActivity : AppCompatActivity() {
 
             if (PermissionManager.check(this)) {
                 Report.start("watch", "/sdcard/app_watch", Config.reportUrl,this)
-                Report.startWatchMainLooper()
+                Report.startWatchMainLooper(5000)
                 AppWatchClient.startMainLooper(5000, handleThread.looper)
                 cpuTestThread.start()
             } else {

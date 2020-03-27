@@ -1,2 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.ttphoto.resource.watch.sdk" />
+    package="com.ttphoto.resource.watch.sdk" >
+    <application>
+
+        <service android:name="com.ttphoto.resource.watch.sdk.services.AppResourceWatchService"
+            android:process=":watch" android:exported="false"/>
+
+    </application>
+</manifest>

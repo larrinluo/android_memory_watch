@@ -26,9 +26,11 @@
 #include <jni.h>
 #include <string>
 #include <unistd.h>
+#include <stdlib.h>
 #include "app_watch_sdk.h"
 #include "../anr/trace_hook.h"
 #include "../deadlock/deadlock.h"
+#include "../opengl/opengl_hook.h"
 #include <android/log.h>
 #include <mutex>
 
@@ -189,6 +191,26 @@ Java_com_ttphoto_resource_watch_sdk_client_WatchSDK_startWatch(JNIEnv *env, jcla
     pthread_create(&tid, NULL, deadlock_thread3, NULL);
     pthread_create(&tid, NULL, deadlock_thread4, NULL);
     pthread_create(&tid, NULL, deadlock_thread5, NULL);
+}
+
+JNIEXPORT void JNICALL
+Java_com_ttphoto_resource_watch_sdk_client_WatchSDK_enableOpenGLWatch(JNIEnv *env,
+                                                                      jclass clazz,
+                                                                      jstring target_so,
+                                                                      jstring output_path) {
+
+    const char *path = env->GetStringUTFChars(output_path, 0);
+    const char *targetSo = env->GetStringUTFChars(target_so, 0);
+
+    if (path != NULL && targetSo != NULL) {
+        OpenGLWatch::registerHooks(targetSo, path);
+    }
+
+    if (path)
+        env->ReleaseStringUTFChars(output_path, path);
+
+    if (targetSo)
+        env->ReleaseStringUTFChars(target_so, targetSo);
 }
 
 } // extern "C"

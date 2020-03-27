@@ -46,6 +46,7 @@ public class WatchSDK {
 
     private native static void enableANRWatch(int sdkVersion, String outputPath, int outputMode);
     private native static void enableDeadLockWatch(int sdkVersion, String targetSo, String outputPath);
+    private native static void enableOpenGLWatch(String targetSo, String outputPath);
     private native static void startWatch();
 
 }

@@ -16,7 +16,8 @@ android {
 
         externalNativeBuild {
             cmake {
-                cppFlags "-std=c++17"
+                cppFlags "-std=gnu++11"
+                abiFilters "armeabi-v7a"
             }
         }
     }
@@ -37,7 +38,6 @@ android {
     externalNativeBuild {
         cmake {
             path "src/main/cpp/CMakeLists.txt"
-            version "3.6.0"
         }
     }
 }
@@ -45,7 +45,6 @@ android {
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 
-    implementation "com.android.support:appcompat-v7:$supportLibraryVersion"
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'

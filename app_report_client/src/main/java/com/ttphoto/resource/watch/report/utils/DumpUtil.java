@@ -26,7 +26,6 @@ package com.ttphoto.resource.watch.report.utils;
 
 import android.os.FileObserver;
 import android.os.Process;
-import android.support.annotation.Nullable;
 
 import com.ttphoto.resource.watch.sdk.IAppWatchClient;
 
@@ -41,7 +40,7 @@ public class DumpUtil {
         }
 
         @Override
-        public void onEvent(int event, @Nullable String path) {
+        public void onEvent(int event, String path) {
             if ((event & MASK) != 0) {
                 done = true;
             }

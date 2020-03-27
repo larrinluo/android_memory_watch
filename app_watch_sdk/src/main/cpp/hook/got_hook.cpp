@@ -85,7 +85,7 @@ std::vector<PthreadCondTimedWaitMethod > GotHook::pthread_cond_timedwait_hook_li
 PTHREAD_COND_TIMEDWAIT GotHook::origin_pthread_cond_timedwait = NULL;
 
 
-#if __ANDROID_API__ >= __ANDROID_API_N__
+#ifdef HAS_SPIN_LOCK
 
 std::vector<PthreadSpinInitMethod> GotHook::pthread_spin_init_hook_list;
 PTHREAD_SPIN_INIT GotHook::origin_pthread_spin_init = NULL;
@@ -100,6 +100,8 @@ std::vector<PthreadSpinUnlockMethod> GotHook::pthread_spin_unlock_hook_list;
 PTHREAD_SPIN_UNLOCK GotHook::origin_pthread_spin_unlock = NULL;
 
 #endif
+
+// hook入口方法
 
 int GotHook::open_hook_entry(const char* pathname, int flags, mode_t mode) {
     OpenMethodContext context;

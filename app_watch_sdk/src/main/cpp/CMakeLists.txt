@@ -5,7 +5,7 @@
 
 cmake_minimum_required(VERSION 3.4.1)
 
-set(XHOOK_SRC "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../xHook/libxhook/jni")
+set(XHOOK_SRC "/Users/larrinluo/work/github/larrin/xHook/libxhook/jni")
 include_directories(BEFORE ${XHOOK_SRC})
 link_directories(BEFORE "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../xHook/libxhook/libs/${ANDROID_ABI}")
 
@@ -24,12 +24,14 @@ add_library( appWatch
              jni/jni_utils.cpp
              hook/got_hook.cpp
              anr/trace_hook.cpp
+             opengl/opengl_hook.cpp
              deadlock/deadlock.cpp
              utils/utils.cpp
              utils/utils_android.cpp
         )
 
 find_library( log-lib log)
+find_library(gles2_lib GLESv2)
 
 target_link_libraries( appWatch
 

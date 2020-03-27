@@ -25,7 +25,6 @@
 package com.ttphoto.resource.watch.sdk;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
 
 import com.ttphoto.resource.watch.sdk.client.performance.MemoryInfo;
 import com.ttphoto.resource.watch.sdk.client.performance.ProcessInfo;
@@ -83,7 +82,6 @@ public class AppPerformanceInfo {
         return builder.toString();
     }
 
-    @NonNull
     @Override
     public String toString() {
 

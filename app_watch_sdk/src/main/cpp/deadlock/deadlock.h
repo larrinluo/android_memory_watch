@@ -29,6 +29,7 @@
 #include "../hook/got_hook.h"
 #include <map>
 #include <vector>
+#include <atomic>
 
 
 #define READ_LOCK_CACHE_SIZE 32

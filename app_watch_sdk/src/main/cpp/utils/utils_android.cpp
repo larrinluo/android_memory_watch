@@ -28,6 +28,7 @@
 #include <unwind.h>
 #include <dlfcn.h>
 #include <iomanip>
+#include <string.h>
 #include "../jni/jni_utils.h"
 
 //for test android

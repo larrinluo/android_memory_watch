@@ -33,6 +33,10 @@
 
 #include <pthread.h>
 
+#if __ANDROID_API__ >= __ANDROID_API_N__
+#define HAS_SPIN_LOCK
+#endif
+
 typedef int (*OPEN_METHOD)(const char* pathname, int flags, mode_t mode);
 typedef ssize_t (*WRITE_METHOD)(int fd, const void *buf, size_t count);
 typedef int (*CLOSE_METHOD)(int fd);
@@ -53,7 +57,7 @@ typedef int (*PTHREAD_RWLOCK_UNLOCK)(pthread_rwlock_t* __rwlock);
 typedef int (*PTHREAD_COND_WAIT)(pthread_cond_t* __cond, pthread_mutex_t* __mutex);
 typedef int (*PTHREAD_COND_TIMEDWAIT)(pthread_cond_t* __cond, pthread_mutex_t* __mutex, const struct timespec* __timeout);
 
-#if __ANDROID_API__ >= __ANDROID_API_N__
+#ifdef HAS_SPIN_LOCK
 typedef int (*PTHREAD_SPIN_DESTROY)(pthread_spinlock_t* __spinlock);
 typedef int (*PTHREAD_SPIN_INIT)(pthread_spinlock_t* __spinlock, int __shared);
 typedef int (*PTHREAD_SPIN_LOCK)(pthread_spinlock_t* __spinlock);
@@ -190,7 +194,7 @@ struct PthreadCondTimedWaitContext {
     int retVal;
 };
 
-#if __ANDROID_API__ >= __ANDROID_API_N__
+#ifdef HAS_SPIN_LOCK
 struct PthreadSpinDestroyContext {
     pthread_spinlock_t* spinlock;
     int retVal;
@@ -230,7 +234,7 @@ typedef int (*PthreadRWLockRdlockMethod)(PthreadRWLockRDLockContext &);
 typedef int (*PthreadRWLockWrLockMethod)(PthreadRWLockWRLockContext &);
 typedef int (*PthreadRWLockUnlockMethod)(PthreadRWLockUnlockContext &);
 
-#if __ANDROID_API__ >= __ANDROID_API_N__
+#ifdef HAS_SPIN_LOCK
 typedef int (*PthreadSpinInitMethod)(PthreadSpinInitContext &);
 typedef int (*PthreadSpinDestroyMethod)(PthreadSpinDestroyContext &);
 typedef int (*PthreadSpinLockMethod)(PthreadSpinLockContext &);
@@ -316,7 +320,7 @@ class GotHook {
     static std::vector<PthreadCondTimedWaitMethod > pthread_cond_timedwait_hook_list;
     static int pthread_cond_timedwait_hook_entry(pthread_cond_t* __cond, pthread_mutex_t* __mutex, const struct timespec* __timeout);
 
-#if __ANDROID_API__ >= __ANDROID_API_N__
+#ifdef HAS_SPIN_LOCK
 
     // pthread_spin_lock hooks
     static std::vector<PthreadSpinInitMethod> pthread_spin_init_hook_list;
@@ -355,7 +359,7 @@ public:
     static PTHREAD_RWLOCK_WRLOCK origin_pthread_rwlock_wrlock;
     static PTHREAD_RWLOCK_UNLOCK origin_pthread_rwlock_unlock;
 
-#if __ANDROID_API__ >= __ANDROID_API_N__
+#ifdef HAS_SPIN_LOCK
     static PTHREAD_SPIN_DESTROY origin_pthread_spin_destroy;
     static PTHREAD_SPIN_INIT origin_pthread_spin_init;
     static PTHREAD_SPIN_LOCK origin_pthread_spin_lock;
@@ -382,7 +386,7 @@ public:
     static void add_pthread_rwlock_wdlock_hook(PthreadRWLockWrLockMethod);
     static void add_pthread_rwlock_unlock_hook(PthreadRWLockUnlockMethod);
 
-#if __ANDROID_API__ >= __ANDROID_API_N__
+#ifdef HAS_SPIN_LOCK
 
     static void add_pthread_spin_init_hook(PthreadSpinInitMethod);
     static void add_pthread_spin_destroy_hook(PthreadSpinDestroyMethod);

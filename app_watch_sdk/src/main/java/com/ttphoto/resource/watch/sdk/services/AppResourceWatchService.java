@@ -32,7 +32,6 @@ import android.content.pm.PackageManager;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
-import android.support.annotation.Nullable;
 import android.util.Log;
 
 import com.ttphoto.resource.watch.sdk.client.performance.CPUInfo;
@@ -121,7 +120,6 @@ public class AppResourceWatchService extends Service {
         }
     };
 
-    @Nullable
     @Override
     public IBinder onBind(Intent intent) {
         return mService;

@@ -192,7 +192,7 @@ int DeadLock::my_pthread_rwlock_rdlock(PthreadRWLockRDLockContext &context) {
 }
 
 /**
- * 一个线程不可能同时进入写锁和读锁, 因此首先常识unlock写锁，然后常识读锁
+ * 一个线程不可能同时进入写锁和读锁, 因此首先尝试unlock写锁，然后尝试读锁
  * @param context
  * @return
  */
@@ -204,11 +204,11 @@ int DeadLock::my_pthread_rwlock_unlock(PthreadRWLockUnlockContext &context) {
         int tid = get_tid();
         if (pLock->owner == tid) {
             unlock(*pLock);
-        } else {
-            RdLockInfo *rdLock = pLock->getReadLock(tid);
-            if (rdLock != NULL) {
-                unlock(*rdLock);
-            }
+        }
+
+        RdLockInfo *rdLock = pLock->getReadLock(tid);
+        if (rdLock != NULL) {
+            unlock(*rdLock);
         }
     }
 
@@ -625,7 +625,9 @@ int DeadLock::timed_lock(LockInfo& lock, int timeout, bool readLock) {
             }
         }
 
-    } else if (lock.type == MUTEX_TYPE::SPIN) {
+    }
+#ifdef HAS_SPIN_LOCK
+    else if (lock.type == MUTEX_TYPE::SPIN) {
         if (timeout < 0) {
             ret = GotHook::origin_pthread_spin_lock((pthread_spinlock_t *)lock.lock);
         } else {
@@ -641,6 +643,7 @@ int DeadLock::timed_lock(LockInfo& lock, int timeout, bool readLock) {
             }
         }
     }
+#endif
 
     return ret;
 }

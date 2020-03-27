@@ -25,6 +25,8 @@
 
 #include "jni_utils.h"
 #include <jni.h>
+#include <stdlib.h>
+#include <memory.h>
 
 JavaVM * JNI::jvm = NULL;
 jobject JNI::gClassLoader = NULL;
